@@ -1,8 +1,10 @@
 /* ui-extras.js: the smaller features, one numbered section each.
    Setting up a new coach, invite links, reminders, swapping an exercise, notes, measurements,
    the weekly summary, themes, notifications and settings. */
-const INVITE_HOST='https://gymnazo.example/join/';
-const inviteLink=c=>INVITE_HOST+c.inviteCode;
+// the link a coach sends. Opening it shows the welcome with the code already filled in
+const inviteLink=c=>LIVE_URL+'?join='+c.inviteCode;
+// pulls the code out of whatever was pasted: "K7P2QX", "k7p2qx" or the whole link
+const codeOf=s=>{s=String(s||'').trim();const m=/join=([A-Za-z0-9]+)/i.exec(s);return(m?m[1]:s.replace(/.*\//,'')).toUpperCase()};
 const inviteMsg=(c,co)=>`Hi ${first(c.name)}, I've set up your training on Gymnazo${co.business?` with ${co.business}`:''}. Tap this link to join and see your plan: ${inviteLink(c)}`;
 const newCode=()=>Array.from({length:6},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]).join('');
 const isInvited=c=>c.status==='invited';
@@ -225,7 +227,7 @@ function cropSheet(){
 function joinCoachSheet(){
   return `<form class="card hud sheetcard" data-form="join-coach" role="dialog" aria-label="Join a coach"><div class="section-hd"><h2>Join a coach</h2><button type="button" class="icon-btn" data-act="close-sheet" aria-label="Close">✕</button></div>
     <p class="hint">Your coach sets your routine and sees your workouts. Everything you've logged stays with you.</p>
-    <label>Invite code<input id="jc-code" name="code" placeholder="e.g. K7P2QX" autocapitalize="characters" autocomplete="off" required maxlength="80"></label>
+    <label>Invite code<input id="jc-code" name="code" value="${esc(ui.joinCode||'')}" placeholder="e.g. K7P2QX" autocapitalize="characters" autocomplete="off" required maxlength="80"></label>
     <button class="btn primary big">Join</button></form>`;
 }
 // the coach's settings for one client: name, goal, and remove
@@ -235,7 +237,8 @@ function clientSheet(c){
   const x='<button class="icon-btn" data-act="close-sheet" aria-label="Close">✕</button>';
   // step 2: "are you sure?" right here in the sheet
   if(cf==='archive'||cf==='delete')return `<div class="card hud sheetcard csheet" role="alertdialog" aria-label="Remove ${esc(c.name)}"><div class="section-hd"><div class="cs-who">${avatarOf(c)}<h2>Remove ${nm}?</h2></div>${x}</div>
-    ${cf==='delete'?`<p class="bad-t">This deletes ${nm} and all their history for good. It can't be undone.</p><div class="cs-actions"><button class="btn danger" data-act="delete-client" data-id="${c.id}">Delete forever</button><button class="btn ghost" data-act="cancel-confirm">Cancel</button></div>`
+    ${cf==='delete'&&live()&&!isInvited(c)?`<p class="bad-t">${nm} stops being your client and you lose their history. They keep it in their own account and carry on training on their own.</p><div class="cs-actions"><button class="btn danger" data-act="delete-client" data-id="${c.id}">Remove for good</button><button class="btn ghost" data-act="cancel-confirm">Cancel</button></div>`
+    :cf==='delete'?`<p class="bad-t">This deletes ${nm} and all their history for good. It can't be undone.</p><div class="cs-actions"><button class="btn danger" data-act="delete-client" data-id="${c.id}">Delete forever</button><button class="btn ghost" data-act="cancel-confirm">Cancel</button></div>`
     :`<p class="muted">Archiving keeps their plans, workouts and photos. They lose access to the app, and you can restore them anytime from Past clients.</p><div class="cs-actions"><button class="btn primary" data-act="archive-client" data-id="${c.id}">Archive ${nm}</button><button class="btn" data-act="ask-delete" data-id="${c.id}">Delete instead</button><button class="btn ghost" data-act="cancel-confirm">Cancel</button></div>`}</div>`;
   return `<div class="card hud sheetcard csheet" role="dialog" aria-label="${esc(c.name)} settings"><div class="section-hd"><div class="cs-who">${avatarOf(c)}<h2>${esc(first(c.name))}</h2></div><button class="icon-btn" data-act="close-sheet" aria-label="Close">✕</button></div>
     <form data-form="edit-client" class="cs-form"><label>Name<input id="ec-name" name="name" value="${esc(c.name)}" required maxlength="40"></label><label>Goal<input id="ec-goal" name="goal" value="${esc(c.goal||'')}" maxlength="80" placeholder="e.g. Build muscle"></label>${c.selfName&&c.selfName!==c.name?`<p class="hint">They go by “${esc(c.selfName)}” in their own app.</p>`:''}<button class="btn primary">Save</button></form>
@@ -328,7 +331,7 @@ function settingsView(){
   const link=(act,l,val,v='')=>`<button class="optrow optlink" data-act="${act}" ${v?`data-v="${v}"`:''}><span><b>${l}</b></span><span class="optval">${esc(val)} <i aria-hidden="true">›</i></span></button>`;
   const group=(t,rows)=>`<section class="optgroup"><h3>${t}</h3><div class="optcard">${rows}</div></section>`;
   const themeName=(THEMES.find(x=>x[0]===themeOf())||THEMES[0])[1];
-  const outRow=`<button class="btn ghost logout" data-act="logout">Log out</button>`;
+  const outRow=(live()&&cloud.user?`<p class="hint acct-line">Signed in as <b>${esc(cloud.user.email)}</b></p>`:'')+`<button class="btn ghost logout" data-act="logout">Log out</button>`;
   const modeRow=group('Mode',link('mode-open','Switch mode',coachSide?'Coach':'Individual'));
   const head=`${backBtn(coachSide?'clients':'today','Back','settings-back')}<header class="hd"><h1>Settings</h1></header>`;
   if(coachSide)return head+`<form class="card hud" data-form="coach-profile"><h3>Profile</h3><label class="logodrop" for="set-logo">${o.logo?`<img src="${o.logo}" alt="Your logo">`:`<span class="mono">${initials(o.business||o.name)}</span>`}<span>${o.logo?'Change logo':'Add a logo'}</span><input type="file" id="set-logo" accept="image/*" data-setlogo></label>
@@ -359,22 +362,46 @@ function settingsView(){
 /* ---------- the welcome: what a brand new person sees the first time they open the app ----------
    A few short questions decide their experience: train on my own, train with a coach (invite code), or coach others.
    Then their name and a theme. ui.welcome = {step, path, code, name, theme}. */
-const WL_ORDER=w=>['hello','path',...(w.path==='coached'?['code']:[]),'name','theme','done'];
+// with real accounts, "account" (email and password) comes just before the end. Once signed in, hello and account are skipped
+const WL_ORDER=w=>{const signed=cloud.on&&!!cloud.user;
+  return[...(signed?[]:['hello']),'path',...(w.path==='coached'?['code']:[]),'name','theme',...(live()&&!signed?['account']:[]),'done']};
+// the little screens off to the side of the welcome: log in, forgot password, check your email
+const WL_SIDE=['login','forgot','sent','check','newpw'];
 function welcomeView(){
-  const w=ui.welcome,order=WL_ORDER(w),i=order.indexOf(w.step),pct=Math.round(i/(order.length-1)*100);
-  const top=w.step==='hello'?'':`<div class="wl-top"><button class="back" data-act="wl-back">‹ Back</button><div class="wl-bar" aria-hidden="true"><i style="width:${pct}%"></i></div></div>`;
+  const w=ui.welcome,order=WL_ORDER(w),i=order.indexOf(w.step),pct=Math.round(Math.max(0,i)/(order.length-1)*100),busy=!!ui.wlBusy;
+  const side=WL_SIDE.includes(w.step);
+  const top=w.step==='hello'||w.step==='newpw'||i===0?'':side?`<div class="wl-top"><button class="back" data-act="wl-back">‹ Back</button></div>`
+    :`<div class="wl-top"><button class="back" data-act="wl-back">‹ Back</button><div class="wl-bar" aria-hidden="true"><i style="width:${pct}%"></i></div></div>`;
   const card=(v,title,sub,icon,n)=>`<button class="modecard wl-in" style="--i:${n}" data-act="wl-path" data-v="${v}"><span class="mc-ic" aria-hidden="true">${icon}</span><span class="mc-txt"><b>${title}</b><small>${sub}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+  // the big button at the bottom. While it's waiting on the internet it says so and can't be tapped twice
+  const go=(label,attrs='')=>`<button class="btn primary big" ${attrs} ${busy?'disabled aria-busy="true"':''}>${busy?'One moment…':label}</button>`;
+  const email=(n,auto='email')=>`<input class="wl-input wl-in" style="--i:${n}" type="email" name="email" id="wl-email" data-wl="email" value="${esc(w.email||'')}" placeholder="Email" autocomplete="${auto}" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="120" aria-label="Email" required>`;
+  const pw=(n,auto)=>`<input class="wl-input wl-in" style="--i:${n}" type="password" name="pw" id="wl-pw" placeholder="Password" autocomplete="${auto}" ${auto==='new-password'?'minlength="8"':''} maxlength="72" aria-label="Password" required>`;
   let body='';
   if(w.step==='hello')body=`<div class="wl-hero"><span class="wl-logo">${APP_MARK}</span><h1 class="wl-in" style="--i:2">Gymnazo</h1><p class="wl-tag wl-in" style="--i:3">Train. Track. Get stronger.</p></div>
-    <div class="wl-foot wl-in" style="--i:5"><button class="btn primary big" data-act="wl-start">Get started</button><button class="linkbtn" data-act="wl-login">I already have an account</button></div>`;
+    <div class="wl-foot wl-in" style="--i:5"><button class="btn primary big" data-act="wl-start">Get started</button><button class="linkbtn" data-act="wl-login">I already have an account</button>${live()?'<button class="linkbtn wl-demo" data-act="wl-demo">Look around first</button>':''}</div>`;
   else if(w.step==='path')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Welcome</p><h1>What brings you here?</h1></header>
     ${card('solo','Train on my own','Build your own workouts and track your progress.',ICON.today,1)}
     ${card('coached','Train with my coach',"Your coach sent you a code. They'll set your workouts.",ICON.invites,2)}
     ${card('coach','I coach others',"Plan your clients' workouts and follow their progress.",ICON.clients,3)}
-    <p class="hint wl-in" style="--i:4">You can change this later, and use more than one.</p>`;
+    <p class="hint wl-in" style="--i:4">You can change this later, and use more than one.</p>
+    ${cloud.on&&cloud.user?`<p class="hint wl-in wl-who" style="--i:5">Signed in as ${esc(cloud.user.email)}. <button class="linkbtn" data-act="logout">Not you?</button></p>`:''}`;
+  else if(w.step==='account')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Last step</p><h1>Save your account</h1><p class="sub">So your training is safe, on any phone.</p></header>
+    <form class="wl-form" data-form="wl-signup">${email(1)}${pw(2,'new-password')}<p class="hint wl-in" style="--i:3">At least 8 characters.</p>
+    <div class="wl-foot wl-in" style="--i:4">${go('Create account')}<button type="button" class="linkbtn" data-act="wl-login">I already have an account</button></div></form>`;
+  else if(w.step==='login')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Welcome back</p><h1>Log in</h1></header>
+    <form class="wl-form" data-form="wl-signin">${email(1)}${pw(2,'current-password')}
+    <div class="wl-foot wl-in" style="--i:3">${go('Log in')}<button type="button" class="linkbtn" data-act="wl-forgot">Forgot password?</button><button type="button" class="linkbtn" data-act="wl-start">New here? Get started</button></div></form>`;
+  else if(w.step==='forgot')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">No stress</p><h1>Reset your password</h1><p class="sub">We'll email you a link to choose a new one.</p></header>
+    <form class="wl-form" data-form="wl-reset">${email(1)}<div class="wl-foot wl-in" style="--i:2">${go('Send link')}</div></form>`;
+  else if(w.step==='sent'||w.step==='check')body=`<div class="wl-hero"><span class="wl-logo">${APP_MARK}</span><h1 class="wl-in" style="--i:2">Check your email</h1>
+    <p class="wl-tag wl-in" style="--i:3">${w.step==='sent'?`If there's an account for ${esc(w.email)}, a reset link is on its way.`:`We sent a link to ${esc(w.email)}. Tap it, then come back here and log in.`}</p></div>
+    <div class="wl-foot wl-in" style="--i:5"><button class="btn primary big" data-act="wl-login">Back to log in</button></div>`;
+  else if(w.step==='newpw')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Almost done</p><h1>Choose a new password</h1></header>
+    <form class="wl-form" data-form="wl-newpw">${pw(1,'new-password')}<p class="hint wl-in" style="--i:2">At least 8 characters.</p><div class="wl-foot wl-in" style="--i:3">${go('Save password')}</div></form>`;
   else if(w.step==='code')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Your coach</p><h1>Enter your invite code</h1><p class="sub">It's in the link your coach sent you.</p></header>
     <input class="wl-input wl-in" style="--i:1" id="wl-code" data-wl="code" value="${esc(w.code)}" placeholder="e.g. K7P2QX" autocapitalize="characters" autocomplete="off" maxlength="80" aria-label="Invite code">
-    <div class="wl-foot wl-in" style="--i:2"><button class="btn primary big" id="wl-next" data-act="wl-next" ${w.code.trim()?'':'disabled'}>Continue</button><button class="linkbtn" data-act="wl-nocode">I don't have a code yet</button></div>`;
+    <div class="wl-foot wl-in" style="--i:2"><button class="btn primary big" id="wl-next" data-act="wl-next" ${w.code.trim()&&!busy?'':'disabled'}>${busy?'Checking…':'Continue'}</button><button class="linkbtn" data-act="wl-nocode">I don't have a code yet</button></div>`;
   else if(w.step==='name')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">${w.path==='coach'?'Coach':w.path==='coached'?'Almost there':'Your training'}</p><h1>What should we call you?</h1></header>
     <input class="wl-input wl-in" style="--i:1" id="wl-name" data-wl="name" value="${esc(w.name)}" placeholder="Your first name" autocomplete="given-name" maxlength="40" aria-label="Your name">
     <div class="wl-foot wl-in" style="--i:2"><button class="btn primary big" id="wl-next" data-act="wl-next" ${w.name.trim()?'':'disabled'}>Continue</button></div>`;
@@ -382,6 +409,6 @@ function welcomeView(){
     <div class="wl-themes">${THEMES.map(([k,n,,bg,ac,ac2],j)=>`<button class="wl-theme wl-in ${w.theme===k?'on':''}" style="--i:${j+1}" data-act="wl-theme" data-v="${k}" aria-pressed="${w.theme===k}"><span class="wl-sw" style="background:${bg}"><i style="background:linear-gradient(135deg,${ac},${ac2})"></i></span><b>${n}</b></button>`).join('')}</div>
     <div class="wl-foot"><button class="btn primary big" data-act="wl-next">Continue</button></div>`;
   else body=`<div class="wl-hero"><span class="wl-logo done">${APP_MARK}</span><h1 class="wl-in" style="--i:2">You're in, ${esc(first(w.name.trim()))}</h1><p class="wl-tag wl-in" style="--i:3">${w.path==='coach'?"Next, a quick setup for your coaching.":w.path==='coached'?'Your coach is connected.':"Next, build your first routine."}</p></div>
-    <div class="wl-foot wl-in" style="--i:5"><button class="btn primary big" data-act="wl-finish">Let's go</button></div>`;
+    <div class="wl-foot wl-in" style="--i:5">${go("Let's go",'data-act="wl-finish"')}</div>`;
   return `<main class="screen welcome" data-step="${w.step}"><span class="wl-glow" aria-hidden="true"></span>${top}<div class="wl-body">${body}</div></main>`;
 }

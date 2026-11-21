@@ -5,14 +5,31 @@
    4. listeners at the bottom that catch taps, typing and form sends, and call the right action
    The pattern is always the same: change the data, then render() again. */
 const KEY='gymnazo-demo-v16';
-try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
-// sample data is made once. It stays until "Reset sample data" is tapped, so changes aren't lost overnight
-if(!S||S.v!==16)S=seed();
-// first visit ever: start with the welcome. After that, open where this person left off
-let welcomed=false;try{welcomed=!!localStorage.getItem('gymnazo-welcomed')}catch(e){}
-if(!welcomed)ui.welcome={step:'hello',path:null,code:'',name:'',theme:'lime'};
-try{const u=JSON.parse(localStorage.getItem('gymnazo-user'));if(u&&(u.role==='coach'?coach(u.id):client(u.id))){ui.user=u;ui.view=u.role==='coach'?'clients':'today'}}catch(e){}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("This browser couldn't keep your changes. They last until you close the page.")}}
+// Two ways the app can run:
+// - real accounts (live): once the online database is set up in cloud.js
+// - the demo with sample data: until then, or when someone taps "Look around first"
+let demoOn=!cloudReady();try{if(localStorage.getItem('gymnazo-demo-on'))demoOn=true}catch(e){}
+const live=()=>cloudReady()&&!demoOn;
+if(demoOn){
+  try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+  // sample data is made once. It stays until "Reset sample data" is tapped, so changes aren't lost overnight
+  if(!S||S.v!==16)S=seed();
+  // first visit ever: start with the welcome. After that, open where this person left off
+  let welcomed=false;try{welcomed=!!localStorage.getItem('gymnazo-welcomed')}catch(e){}
+  if(!welcomed)ui.welcome={step:'hello',path:null,code:'',name:'',theme:'lime'};
+  try{const u=JSON.parse(localStorage.getItem('gymnazo-user'));if(u&&(u.role==='coach'?coach(u.id):client(u.id))){ui.user=u;ui.view=u.role==='coach'?'clients':'today'}}catch(e){}
+}else cloudStart(); // opens the copy saved on this phone straight away, then checks the account online (see cloud.js)
+// an invite link (…/gymnazo/?join=K7P2QX) opens with the code already filled in
+{const m=/[?&]join=([A-Za-z0-9]+)/.exec(String(location.search||''));if(m){const code=m[1].toUpperCase();
+  if(ui.welcome)Object.assign(ui.welcome,{step:'code',path:'coached',code});
+  else if(ui.user.role==='client'&&isSolo(client(ui.user.id))){ui.joinSheet=true;ui.joinCode=code}
+  try{history.replaceState(null,'',location.pathname)}catch(e){}}}
+// every change goes to this phone first. With an account, it then goes up to the database a moment later
+function save(){
+  if(cloud.on){cloudSaveLocal();cloudQueue();return}
+  if(!demoOn)return;
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("This browser couldn't keep your changes. They last until you close the page.")}
+}
 
 /* ---------- the two modes ----------
    One account, two sides. "solo" is Individual mode (your own training), "coach" is Coach mode (your clients).
@@ -47,6 +64,7 @@ function modeChooser(){
    Only for the prototype: lets you jump between the coach and each client to see both sides.
    It lives behind the "viewing as" button in the top bar (see demoSheet below). */
 function demoSheet(){
+  if(live())return accountSheet();
   const cur=ui.user.role==='client'?client(ui.user.id):null;
   // in Individual mode on your own account, the tick stays on your name
   const me=cur&&cur.solo&&cur.asCoachId?`coach:${cur.asCoachId}`:`${ui.user.role}:${ui.user.id}`;
@@ -60,6 +78,13 @@ function demoSheet(){
     <div class="demo-list">${groups}</div>
     <div class="demo-foot"><div class="optrow"><span><b>Client's phone</b></span><span class="whenseg" role="group" aria-label="Client phone connection"><button class="${S.online?'on':''}" data-act="online" data-v="1">Online</button><button class="${S.online?'':'on'}" data-act="online" data-v="0">Offline</button></span></div>
     <div class="btnrow"><button class="btn ghost sm" data-act="reset">Reset sample data</button><button class="btn ghost sm" data-act="welcome-replay">Replay welcome</button></div></div></div>`;
+}
+// with a real account, the round button just has the mode switch and who's signed in
+function accountSheet(){
+  const mode=canSwitchMode()?`<div class="modeseg"><div class="whenseg" role="group" aria-label="Mode">${[['solo','Individual'],['coach','Coach']].map(([v,l])=>`<button class="${modeOf()===v?'on':''}" data-act="mode-pick" data-v="${v}" aria-pressed="${modeOf()===v}">${l}</button>`).join('')}</div></div>`:'';
+  return `<div class="card hud sheetcard demosheet" role="dialog" aria-label="Mode and account"><div class="section-hd"><h2>${mode?'Mode':'Your account'}</h2><button class="icon-btn" data-act="close-sheet" aria-label="Close">✕</button></div>
+    ${mode}<p class="hint acct-line">Signed in as <b>${esc(cloud.user?cloud.user.email:'')}</b></p>
+    <div class="btnrow"><button class="btn ghost sm" data-act="logout">Log out</button></div></div>`;
 }
 // the round button in the top bar that opens the switcher: shows the initials of who you're viewing as
 const demoBtn=()=>{const who=ui.user.role==='coach'?coach(ui.user.id):client(ui.user.id);return `<button class="barbtn whobtn" data-act="demo-open" aria-label="Viewing as ${esc(who?who.name:'')}. Switch" title="Viewing as"><span>${who&&who.avatar?`<img src="${who.avatar}" alt="">`:initials(who?(ui.user.role==='coach'?who.name:myName(who)):'?')}</span></button>`};
@@ -109,6 +134,27 @@ function renderSheet(){
 /* low energy today: longer breaks so every rep can still be finished */
 function restBonus(c){const r=c.readiness[today()];if(!r||!pref(c,'extraRest'))return 0;const sc=readyScore(r);return sc<55?60:sc<75?30:0}
 function closeSheets(){ui.crop=null;ui.joinSheet=false;ui.demoSheet=false;if(ui.clientSheet)ui.confirm=null;ui.clientSheet=null;ui.searchSheet=false;ui.sq='';ui.preview=null;ui.finishing=null;ui.swapRow=null;ui.remSheet=false;ui.nameSheet=false;ui.themeSheet=false;ui.notifSheet=false;ui.installSheet=false;render()}
+/* ---------- welcome helpers ---------- */
+// while something goes to the internet, the button shows "One moment…". If it fails, a friendly message says why
+// (it changes just the button, so the screen doesn't replay its fade-in animation)
+function wlWait(p){ui.wlBusy=true;const w=ui.welcome,step=w&&w.step,btn=()=>document.querySelector('.welcome .btn.primary');
+  const b=btn();if(b){b.disabled=true;b.dataset.label=b.textContent;b.textContent='One moment…'}
+  return p.catch(e=>toast(authMsg(e))).finally(()=>{ui.wlBusy=false;
+    if(ui.welcome&&ui.welcome===w&&w.step===step){const b2=btn();if(b2){b2.disabled=false;if(b2.dataset.label)b2.textContent=b2.dataset.label}return} // same screen: just wake the button up
+    render()})}
+// someone accepting their coach's invite in the welcome
+function welcomeJoined(c,name){c.invitedAs=c.name;c.name=name;c.selfName=name;c.status='active';c.joinedTs=Date.now();c.joinSeen=false;c.joinedAt=today();
+  (c.notes=c.notes||[]).unshift({id:uid(),text:`Welcome! You're now connected to ${coachOf(c).name}.`,ts:Date.now()});switchUser('client',c.id)}
+function welcomeEnd(w){ui.welcome=null;ui.modePick=false;setTheme(w.theme);
+  try{localStorage.setItem('gymnazo-welcomed','1');localStorage.setItem('gymnazo-mode',modeOf());localStorage.removeItem('gymnazo-welcome')}catch(e){}save();scrollTo(0,0)}
+// someone training on their own joins a coach: keep all the history; if the coach already built a routine,
+// it takes over and the old one is filed under past routines
+function joinMerge(me,inv,co){
+  if(inv.plan){const np=inv.plan,from=np.activeFrom||mondayOf(np.startDate),old=me.plan;
+    if(old){const of=old.activeFrom||mondayOf(old.startDate);if(of<from){me.planHistory=me.planHistory||[];me.planHistory.push({from:of,until:addDays(from,-1),plan:clone(old)})}}me.plan=np}
+  me.coachId=inv.coachId;me.solo=false;if(inv.goal&&!me.goal)me.goal=inv.goal;me.invitedAs=inv.name;me.joinedTs=Date.now();me.joinSeen=false;me.joinedAt=today();
+  (me.notes=me.notes||[]).unshift({id:uid(),text:`You're now training with ${co.name}. They set your routine and can see your workouts.`,ts:Date.now()});
+}
 function newClient(o){return{id:uid(),logs:[],weights:[],photos:[],messages:[],notes:[],plan:null,session:null,readiness:{},progressions:[],planHistory:[],swaps:{},swapFeed:[],measures:[],checkins:[],formChecks:[],dayEdits:{},reminder:{on:false,time:'07:00'},coachRead:0,notesSeen:0,status:'active',...o}}
 function shrinkImage(file,max,done,type='image/png'){const img=new Image();img.onload=()=>{const k=Math.min(1,max/Math.max(img.width,img.height)),cv=document.createElement('canvas');cv.width=Math.round(img.width*k);cv.height=Math.round(img.height*k);cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(img.src);done(cv.toDataURL(type,.82))};img.onerror=()=>toast("That file couldn't be read as an image. Try a JPG or PNG.");img.src=URL.createObjectURL(file)}
 // after tapping a day on the calendar, slide down to its details if they're below the screen
@@ -196,26 +242,45 @@ const ACT={
   'cancel-confirm'(){ui.confirm=null;if(ui.clientSheet){renderSheet();return'skip'}},
   'archive-client'(el){const c=client(el.dataset.id);c.archived=true;c.archivedAt=today();ui.confirm=null;ui.clientSheet=null;ui.view='clients';ui.showPast=true;save();toast(`${c.name} moved to past clients. You can restore them anytime.`)},
   'restore-client'(el){const c=client(el.dataset.id);c.archived=false;delete c.archivedAt;save();toast(`${c.name} is active again.`)},
-  'delete-client'(el){const c=client(el.dataset.id);S.clients=S.clients.filter(x=>x.id!==c.id);ui.confirm=null;ui.clientSheet=null;ui.view='clients';if(ui.user.id===c.id)ui.user={role:'coach',id:c.coachId};save();toast(`${c.name} and their history were deleted.`)},
+  // with real accounts, someone who joined keeps their own history: they're just no longer your client
+  'delete-client'(el){const c=client(el.dataset.id),keeps=live()&&!isInvited(c);S.clients=S.clients.filter(x=>x.id!==c.id);ui.confirm=null;ui.clientSheet=null;ui.view='clients';if(ui.user.id===c.id)ui.user={role:'coach',id:c.coachId};save();
+    toast(keeps?`${c.name} is no longer your client. Their own history stays with them.`:`${c.name} and their history were deleted.`)},
   // the welcome for brand new people
   'wl-start'(){ui.welcome.step='path'},
-  'wl-login'(){ui.welcome=null;try{localStorage.setItem('gymnazo-welcomed','1')}catch(e){}}, // prototype: opens the sample account
+  // demo: opens the sample account. With real accounts: the log in screen
+  'wl-login'(){if(live()){ui.welcome.step='login';return}ui.welcome=null;try{localStorage.setItem('gymnazo-welcomed','1')}catch(e){}},
+  // "Look around first": the demo with sample data, no account needed
+  'wl-demo'(){try{localStorage.setItem('gymnazo-demo-on','1')}catch(e){}location.reload();return'skip'},
   'wl-path'(el){const w=ui.welcome;w.path=el.dataset.v;w.step=w.path==='coached'?'code':'name'}, // no auto-focus: the keyboard waits until they tap the box
   'wl-nocode'(){const w=ui.welcome;w.path='solo';w.code='';w.step='name';toast('No problem. You can add your coach later in Settings.')},
   'wl-theme'(el){ui.welcome.theme=el.dataset.v},
-  'wl-back'(){const w=ui.welcome,o=WL_ORDER(w),i=o.indexOf(w.step);w.step=o[Math.max(0,i-1)]},
+  'wl-back'(){const w=ui.welcome,side={login:'hello',check:'hello',forgot:'login',sent:'login'};
+    if(side[w.step]){w.step=side[w.step];return}
+    const o=WL_ORDER(w),i=o.indexOf(w.step);w.step=o[Math.max(0,i-1)]},
+  'wl-forgot'(){ui.welcome.step='forgot'},
   'wl-next'(){const w=ui.welcome;
-    if(w.step==='code'){const code=w.code.trim().replace(/.*\//,'').toUpperCase();if(!S.clients.some(x=>isInvited(x)&&x.inviteCode===code)){toast("That code doesn't match an invite. Check it with your coach.");return'skip'}w.code=code}
+    if(w.step==='code'){const code=codeOf(w.code);
+      if(live()){ // ask the database if the code is real (it only tells us which coach sent it)
+        wlWait(cloudInviteInfo(code).then(info=>{if(!info){toast("That code doesn't match an invite. Check it with your coach.");return}
+          w.code=code;w.coachName=info.coach;const o=WL_ORDER(w);w.step=o[o.indexOf('code')+1]}));return'skip'}
+      if(!S.clients.some(x=>isInvited(x)&&x.inviteCode===code)){toast("That code doesn't match an invite. Check it with your coach.");return'skip'}w.code=code}
     if(w.step==='name'&&!w.name.trim())return'skip';
     const o=WL_ORDER(w);w.step=o[o.indexOf(w.step)+1]},
   'wl-finish'(){const w=ui.welcome,name=w.name.trim();
     if(w.path==='coach'){const co={id:uid(),name,business:'',logo:null,onboarded:false,notifRead:Date.now()};S.coaches.push(co);switchUser('coach',co.id)}
-    else if(w.path==='coached'){const c=S.clients.find(x=>isInvited(x)&&x.inviteCode===w.code);c.invitedAs=c.name;c.name=name;c.selfName=name;c.status='active';c.joinedTs=Date.now();c.joinSeen=false;c.joinedAt=today();
-      c.notes.unshift({id:uid(),text:`Welcome! You're now connected to ${coachOf(c).name}.`,ts:Date.now()});switchUser('client',c.id)}
+    else if(w.path==='coached'&&live()){ // the invite becomes their training, then the welcome ends
+      wlWait(cloudJoin(w.code).then(r=>{
+        if(!r||!r.ok){toast(r&&r.why==='own'?"That invite is from your own Coach mode.":"That invite was used or cancelled. Ask your coach for a new link.");w.step='code';return}
+        const c=client(r.invite_id);if(!c){toast("Couldn't load your coach's plan. Try again.");return}
+        welcomeJoined(c,name);welcomeEnd(w)}));return'skip'}
+    else if(w.path==='coached'){welcomeJoined(S.clients.find(x=>isInvited(x)&&x.inviteCode===w.code),name)}
     else{const c=newClient({coachId:null,solo:true,name,joinedAt:today()});S.clients.push(c);switchUser('client',c.id)}
-    ui.welcome=null;ui.modePick=false;setTheme(w.theme);try{localStorage.setItem('gymnazo-welcomed','1');localStorage.setItem('gymnazo-mode',modeOf())}catch(e){}save();scrollTo(0,0)},
-  // prototype log out: back to the first screen. Real sign-out comes with the backend
-  logout(){closeSheets();ui.confirm=null;ui.modePick=false;ui.welcome={step:'hello',path:null,code:'',name:'',theme:themeOf()};try{localStorage.removeItem('gymnazo-welcomed');localStorage.removeItem('gymnazo-user')}catch(e){}scrollTo(0,0)},
+    welcomeEnd(w)},
+  // log out: back to the first screen
+  logout(){closeSheets();ui.confirm=null;ui.modePick=false;
+    if(live()){ui.welcome=wlNew('hello');render();wlWait(cloudSignOut().then(()=>{ui.welcome=wlNew('hello')}));scrollTo(0,0);return'skip'}
+    if(cloudReady()&&demoOn){try{localStorage.removeItem('gymnazo-demo-on')}catch(e){}location.reload();return'skip'} // leaving the demo
+    ui.welcome={step:'hello',path:null,code:'',name:'',theme:themeOf()};try{localStorage.removeItem('gymnazo-welcomed');localStorage.removeItem('gymnazo-user')}catch(e){}scrollTo(0,0)},
   'welcome-replay'(){ui.demoSheet=false;ui.welcome={step:'hello',path:null,code:'',name:'',theme:'lime'};scrollTo(0,0)},
   // the daily check cards on Today
   'feel-pick'(el){const c=client(ui.user.id),f=ui.feel||(ui.feel={step:0,a:{}}),q=FEEL_Q[f.step],o=q&&q.opts.find(x=>x[0]===el.dataset.v);if(!o)return'skip';
@@ -526,16 +591,30 @@ document.addEventListener('submit',e=>{
   if(k==='coach-profile'){const o=coach(ui.user.id),n=String(fd.get('name')||'').trim();if(!n){toast('Enter your name.');return}o.name=n;o.business=String(fd.get('business')||'').trim();save();render();toast('Profile saved.');return}
   if(k==='edit-client'){const c=client(ui.clientId),n=String(fd.get('name')||'').trim();if(!n){toast('Enter a name.');return}c.name=n;c.goal=String(fd.get('goal')||'').trim();ui.clientSheet=null;save();render();renderSheet();toast('Client details saved.');return}
   if(k==='my-name'){const c=client(ui.user.id),n=String(fd.get('name')||'').trim();if(!n){toast('Enter a name.');return}c.selfName=n;ui.nameSheet=false;save();render();toast(`Got it, ${first(n)}.`);return}
-  if(k==='join-coach'){const me=client(ui.user.id),code=String(fd.get('code')||'').trim().replace(/.*\//,'').toUpperCase(),inv=S.clients.find(x=>isInvited(x)&&x.inviteCode===code);
+  // the welcome's account screens
+  if(k==='wl-signup'||k==='wl-signin'||k==='wl-reset'){const w=ui.welcome,email=String(fd.get('email')||'').trim(),pw=String(fd.get('pw')||'');w.email=email;
+    if(!okEmail(email)){toast("That email doesn't look right.");return}
+    if(k==='wl-reset'){wlWait(cloudSendReset(email).then(()=>{w.step='sent'}));return}
+    if(!pw){toast('Enter your password.');return}
+    if(k==='wl-signin'){wlWait(cloudSignIn(email,pw).then(user=>cloudSignedIn(user)));return}
+    if(pw.length<8){toast('Use at least 8 characters for your password.');return}
+    wlWait(cloudSignUp(email,pw,w.name.trim()).then(r=>{
+      // email confirmation switched on: remember their answers, so after they confirm and log in they land in the app
+      if(r==='confirm'){try{localStorage.setItem('gymnazo-welcome',JSON.stringify({path:w.path,code:w.code,name:w.name,theme:w.theme}))}catch(e){}w.step='check';return}
+      w.step='done'}));return}
+  if(k==='wl-newpw'){const pw=String(fd.get('pw')||'');if(pw.length<8){toast('Use at least 8 characters for your password.');return}
+    wlWait(cloudNewPassword(pw).then(user=>{toast('Password changed.');ui.welcome=null;return cloudSignedIn(user)}));return}
+  if(k==='join-coach'){const me=client(ui.user.id),code=codeOf(fd.get('code'));
+    if(live()){cloudJoin(code,me.id).then(r=>{
+        if(!r||!r.ok){toast(r&&r.why==='own'?"That invite is from your own Coach mode.":"That code doesn't match an invite. Check it with your coach.");return}
+        const co=coach(r.coach_id)||{...r.coach,id:r.coach_id},me2=client(ui.user.id);
+        joinMerge(me2,{...r.invite,coachId:r.coach_id},co);ui.joinSheet=false;ui.joinCode='';ui.view='today';save();render();toast(`Connected to ${co.business||co.name}.`)
+      }).catch(e=>toast(authMsg(e)));return}
+    const inv=S.clients.find(x=>isInvited(x)&&x.inviteCode===code);
     if(!inv){toast("That code doesn't match an invite. Check it with your coach.");return}
     if(inv.coachId===me.asCoachId){toast("That invite is from your own Coach mode.");return}
-    const co=coach(inv.coachId);
-    // keep all the history; if the coach already built a routine, it takes over and the old one is filed under past routines
-    if(inv.plan){const np=inv.plan,from=np.activeFrom||mondayOf(np.startDate),old=me.plan;
-      if(old){const of=old.activeFrom||mondayOf(old.startDate);if(of<from){me.planHistory=me.planHistory||[];me.planHistory.push({from:of,until:addDays(from,-1),plan:clone(old)})}}me.plan=np}
-    me.coachId=inv.coachId;me.solo=false;if(inv.goal&&!me.goal)me.goal=inv.goal;me.invitedAs=inv.name;me.joinedTs=Date.now();me.joinSeen=false;me.joinedAt=today();
-    S.clients=S.clients.filter(x=>x.id!==inv.id);ui.joinSheet=false;ui.view='today';
-    me.notes.unshift({id:uid(),text:`You're now training with ${co.name}. They set your routine and can see your workouts.`,ts:Date.now()});save();render();toast(`Connected to ${co.business||co.name}.`);return}
+    const co=coach(inv.coachId);joinMerge(me,inv,co);
+    S.clients=S.clients.filter(x=>x.id!==inv.id);ui.joinSheet=false;ui.view='today';save();render();toast(`Connected to ${co.business||co.name}.`);return}
   if(k==='join'){const c=client(ui.user.id);if(String(fd.get('pw')).length<8){toast('Use at least 8 characters for your password.');return}const nm=String(fd.get('name')||'').trim();c.invitedAs=c.name;if(nm){c.name=nm;c.selfName=nm}c.status='active';c.joinedTs=Date.now();c.joinSeen=false;c.joinedAt=today();ui.join=null;c.notes.unshift({id:uid(),text:`Welcome! You're now connected to ${coachOf(c).name}. Your plan shows here as soon as it's ready.`,ts:Date.now()});save();render();toast('Welcome to Gymnazo.');return}
   if(k==='send'){const text=fd.get('text').trim();if(!text)return;const role=ui.user.role,c=role==='coach'?client(ui.clientId):client(ui.user.id);c.messages.push({from:role,text,ts:Date.now(),synced:role==='coach'?true:S.online});if(role==='coach')c.coachRead=Date.now();save();ui.focus='msg-input';render();return}
   if(k==='checkin'){const c=client(ui.user.id),v=ui.ci||{},T=today(),mon=mondayOf(T),cn=first(coachOf(c).name),w=parseFloat(String(v.kg||'').replace(',','.'));

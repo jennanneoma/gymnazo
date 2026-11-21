@@ -5,8 +5,10 @@
    - the maths for progress: streaks, how a lift is going, weekly weights
    Everything the app knows lives in one object called S. It gets saved in the browser (see app.js). */
 const $=s=>document.querySelector(s);
-// quick random id like "k3j9x0ab", for anything new we create
-const uid=()=>Math.random().toString(36).slice(2,10);
+// random id like "k3j9x0abq2m7zt", for anything new we create. Long enough that two phones never pick the same one
+const uid=()=>{const a='0123456789abcdefghijklmnopqrstuvwxyz',c=globalThis.crypto;let r;
+  try{r=c&&c.getRandomValues?c.getRandomValues(new Uint8Array(14)):null}catch(e){}
+  r=r||Array.from({length:14},()=>Math.floor(Math.random()*256));let s='';for(const x of r)s+=a[x%36];return s};
 const clone=o=>JSON.parse(JSON.stringify(o));
 // esc() makes text safe to put in HTML (so a name like <b> shows as text, not as code)
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -98,13 +100,16 @@ function plates(total,bar=20){
   return{out,left:Math.round(side*100)/100};
 }
 
+// the built-in exercise list, ready to use. Everyone gets the same ids (e0, e1...), so routines can point at them
+const baseExercises=()=>EX.map(([name,group,pattern,load],i)=>({id:'e'+i,name,group,pattern:pattern||'curl',load:load||null,unit:unitFor(name),...(pattern?{}:{noAnim:true})}));
+
 /* ---------- sample data ----------
    seed() builds a fresh, believable demo: two coaches, a few clients, a few weeks of workouts.
    It runs on first load, and again each new day so the dates always look recent. */
 function seed(){
   const T=today();
   const S={v:16,online:true,seededOn:T,coaches:[{id:'co1',name:'Immanuel',business:'Immanuel Fitness',logo:null,onboarded:true,notifRead:Date.now()-3*864e5},{id:'co2',name:'Dev Patel',business:'Dev Patel Coaching',logo:null,onboarded:true,notifRead:Date.now()-3*864e5},{id:'co3',name:'New coach',business:'',logo:null,onboarded:false}],
-    exercises:EX.map(([name,group,pattern,load],i)=>({id:'e'+i,name,group,pattern:pattern||'curl',load:load||null,unit:unitFor(name),...(pattern?{}:{noAnim:true})})),templates:[],clients:[]};
+    exercises:baseExercises(),templates:[],clients:[]};
   const ex=n=>S.exercises.find(e=>e.name===n).id,exById2=id=>(S.exercises.find(e=>e.id===id)||{}).name;
   const row=(n,sets,reps,rest,weight='',prog=0,note='')=>({id:uid(),exId:ex(n),sets,reps,rest,weight,prog:{type:prog?"earned":"none",step:prog||2.5,every:1},note});
   const day=(name,rows)=>({id:uid(),name:cleanTitle(name),rest:false,exercises:rows});
