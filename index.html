@@ -1105,6 +1105,15 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .wl-alt{text-align:center;color:var(--muted);font-size:.93rem}
 .wl-alt .wl-mini{font-size:inherit;margin-left:2px}
 .wl-alt p+p{margin-top:4px}
+/* "or" + log in / try the demo, pinned to the bottom of "What brings you here" */
+.wl-end{display:flex;flex-direction:column;gap:14px;position:relative}
+.wl-or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase}
+.wl-or::before,.wl-or::after{content:"";flex:1;height:1px;background:var(--line2)}
+.wl-alts{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:10px}
+.wl-altbtn{display:flex;align-items:center;justify-content:center;gap:8px;height:50px;padding:0 12px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);color:var(--ink);font-family:var(--body);font-size:.95rem;font-weight:600;white-space:nowrap;transition:border-color .15s,transform .15s,background-color .15s}
+.wl-altbtn svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--accent);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.wl-altbtn:hover{border-color:var(--accent)}
+.wl-altbtn:active{transform:scale(.98);background:var(--accent-soft)}
 .wl-note{padding:12px 14px;border-radius:8px;border:1px solid var(--accent-dim);background:var(--accent-soft);font-size:.92rem;line-height:1.45}
 .wl-invite{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--accent-dim);background:var(--accent-soft)}
 .wl-invite .avatar{border-radius:50%}
@@ -1116,7 +1125,7 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .wl-made i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font-size:.66rem;animation:wlPop .5s .2s cubic-bezier(.3,1.6,.5,1) both}
 @keyframes wlShake{15%,55%{transform:translateX(-6px)}35%,75%{transform:translateX(6px)}}
 .wl-demo{opacity:.7}
-.wl-who{text-align:center}.wl-who .linkbtn{padding:0 2px}
+.wl-who,.wl-mid{text-align:center}.wl-who .linkbtn{padding:0 2px}
 .acct-line{text-align:center;margin:6px 0 10px}.acct-line b{color:var(--ink);font-weight:600;word-break:break-all}
 /* the theme picker (last step of the welcome): one small row of colour dots, the name of the one picked underneath */
 .wl-dots{display:flex;justify-content:space-between;gap:6px;padding:4px 0}

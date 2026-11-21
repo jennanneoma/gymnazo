@@ -392,6 +392,8 @@ function mailFix(s){const m=String(s).trim().toLowerCase().match(/^([^\s@]+)@([^
   return bd<=(best.length>=9?2:1)?m[1]+'@'+best:''}
 const wlSuggHtml=s=>{const [u,h]=s.split('@');return`Did you mean <button type="button" class="wl-fix" data-act="wl-fix">${esc(u)}@<b>${esc(h)}</b></button>?`};
 const WL_IC={
+  login:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h3.5A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5H14"/><path d="M10 16l4-4-4-4M14 12H4"/></svg>',
+  play:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
   mail:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.8 7l8.2 6 8.2-6"/></svg>',
   lock:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path d="M12 14.5v2"/></svg>',
   eye:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -420,15 +422,19 @@ function welcomeView(){
     ${isNew?`<div class="wl-meter" id="wl-meter" data-lv="${lv}"${w.pw?'':' hidden'}><span class="wl-segs" aria-hidden="true"><i></i><i></i><i></i></span><small id="wl-meter-t">${lt}</small></div>`:''}
     <p class="wl-caps" id="wl-caps" hidden>Caps Lock is on</p>${errLine('pw')}${w.step==='login'?'<button type="button" class="wl-mini wl-forgot" data-act="wl-forgot">Forgot password?</button>':''}</div>`};
   const formErr=err.form?`<p class="wl-err wl-formerr" role="alert">${esc(err.form)}</p>`:'';
-  let body='';
+  let body='',end=''; // end = the little bit pinned to the bottom of the screen
   if(w.step==='hello')body=`<div class="wl-hero"><span class="wl-logo">${APP_MARK}</span><p class="wl-tag wl-hi wl-in" style="--i:2">Welcome to</p><h1 class="wl-in" style="--i:3">Gymnazo</h1><p class="wl-tag wl-in" style="--i:4">Train. Track. Get stronger.</p></div>`;
   else if(w.step==='path')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">About you</p><h1>What brings you here?</h1></header>
     ${card('solo','Train on my own','Build your own workouts and track your progress.',ICON.today,1)}
     ${card('coached','Train with my coach',"Your coach sent you a code. They'll set your workouts.",ICON.invites,2)}
     ${card('coach','I coach others',"Plan your clients' workouts and follow their progress.",ICON.clients,3)}
-    <p class="hint wl-in" style="--i:4">You can change this later, and use more than one.</p>
+    <p class="hint wl-in wl-mid" style="--i:4">You can change this later, and use more than one.</p>
     ${cloud.on&&cloud.user?`<p class="hint wl-in wl-who" style="--i:5">Signed in as ${esc(cloud.user.email)}. <button class="linkbtn" data-act="logout">Not you?</button></p>`
-      :`<div class="wl-alt wl-in" style="--i:5"><p>Already have an account? <button type="button" class="wl-mini" data-act="wl-login">Log in</button></p>${live()?'<p>Just looking? <button type="button" class="wl-mini" data-act="wl-demo">Try the demo</button></p>':''}</div>`}`;
+      :''}`;
+  // not signed in yet: log in and the demo sit together at the bottom, as two matching buttons
+  if(w.step==='path'&&!(cloud.on&&cloud.user))end=`<div class="wl-end wl-in" style="--i:5"><p class="wl-or">or</p><div class="wl-alts">
+    <button type="button" class="wl-altbtn" data-act="wl-login" aria-label="I already have an account. Log in">${WL_IC.login}Log in</button>
+    ${live()?`<button type="button" class="wl-altbtn" data-act="wl-demo">${WL_IC.play}Try the demo</button>`:''}</div></div>`;
   else if(w.step==='account'){
     // the words fit what they picked on the screen before
     const sub={solo:'Keep your workouts safe, on any phone.',coached:"One quick step, then you're connected.",coach:'Your clients and plans, on every device.'}[w.path]||'Keep your training safe, on any phone.';
@@ -460,5 +466,5 @@ function welcomeView(){
     <div class="wl-foot wl-in" style="--i:3"><button class="btn primary big" data-act="wl-next">Continue</button></div>`}
   else body=`<div class="wl-hero"><span class="wl-logo done">${APP_MARK}</span><h1 class="wl-in" style="--i:2">You're in, ${esc(first(w.name.trim()))}</h1><p class="wl-tag wl-in" style="--i:3">${w.path==='coach'?"Next, a quick setup for your coaching.":w.path==='coached'?'Your coach is connected.':"Next, build your first routine."}</p></div>
     <div class="wl-foot wl-in" style="--i:5">${go("Let's go",'data-act="wl-finish"')}</div>`;
-  return `<main class="screen welcome${still?' still':''}" data-step="${w.step}"${w.step==='hello'?' data-act="wl-start" aria-label="Welcome to Gymnazo. Tap to start"':''}><span class="wl-glow" aria-hidden="true"></span>${top}<div class="wl-body">${body}</div></main>`;
+  return `<main class="screen welcome${still?' still':''}" data-step="${w.step}"${w.step==='hello'?' data-act="wl-start" aria-label="Welcome to Gymnazo. Tap to start"':''}><span class="wl-glow" aria-hidden="true"></span>${top}<div class="wl-body">${body}</div>${end}</main>`;
 }
