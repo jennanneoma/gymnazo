@@ -35,7 +35,7 @@
 :root[data-skin="blush"]{--bg:#FFF5F8;--surface:#FFFFFF;--sunk:#FDEBF1;--raise:#FADDE8;--ink:#3A1225;--muted:#8A6676;--line:#F5DCE6;--line2:#EBC2D3;--accent:#D6336C;--accent-dim:#F0A5C0;--on-accent:#FFFFFF;--accent-rgb:214,51,108;--accent2:#F08A5D;--accent2-rgb:240,138,93;--bad:#C2410C;--bad-rgb:194,65,12;--warn:#8A5A00;--warn-rgb:138,90,0;color-scheme:light}
 :root[data-skin="daylight"]{--bg:#F3FAF6;--surface:#FFFFFF;--sunk:#E8F4ED;--raise:#DCEEE3;--ink:#0F2A1E;--muted:#5B7568;--line:#D8EBE0;--line2:#BCDCC9;--accent:#0B7F53;--accent-dim:#8FD3B4;--on-accent:#FFFFFF;--accent-rgb:11,127,83;--accent2:#1A9BA8;--accent2-rgb:26,155,168;--bad:#C62828;--bad-rgb:198,40,40;--warn:#8A5A00;--warn-rgb:138,90,0;color-scheme:light}
 *{box-sizing:border-box}
-html,body{min-height:100%}
+html,body{min-height:100%;margin:0}
 body{background-color:var(--bg);background-image:radial-gradient(ellipse 80% 40% at 50% -5%,rgba(var(--accent-rgb),.06),transparent 70%),linear-gradient(rgba(var(--accent-rgb),.018) 1px,transparent 1px),linear-gradient(90deg,rgba(var(--accent-rgb),.018) 1px,transparent 1px);background-size:100% 100%,40px 40px,40px 40px;background-attachment:fixed;color:var(--ink);font:15.5px/1.6 var(--body)}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -99,7 +99,10 @@ label{display:flex;flex-direction:column;gap:4px;font-size:.72rem;font-family:va
 input:not([type=checkbox]):not([type=file]),select{border:1px solid var(--line2);background:var(--sunk);border-radius:2px;padding:8px 10px;font-size:.95rem;color:var(--ink);width:100%;min-width:0;text-transform:none;letter-spacing:0;font-family:var(--body)}
 input.mono{font-family:var(--mono)}
 input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+/* iPhones draw date boxes their own way: wider than their column, taller, and centred. This lines them up with the other boxes */
+input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;height:calc(1.455em + 18px);line-height:normal}
+input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 .pill{font-family:var(--mono);font-size:.66rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:2px;background:var(--sunk);color:var(--muted);white-space:nowrap;border:1px solid var(--line2)}
 .pill.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .pill.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
@@ -1036,7 +1039,7 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .optrow.leave-confirm{flex-wrap:wrap}
 .optrow.leave-confirm .btnrow{flex:none}
 /* ---------- the welcome screens (first visit) ---------- */
-.welcome{min-height:100vh;position:relative;overflow:hidden;gap:20px;padding-block:22px 34px}
+.welcome{min-height:100vh;position:relative;overflow:hidden;overflow:clip;gap:20px;padding-block:22px 34px} /* clip: the glow can never push the screen sideways */
 .wl-glow{position:absolute;left:50%;top:-18%;width:130%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:radial-gradient(circle,rgba(var(--accent-rgb),.20),rgba(var(--accent2-rgb),.08) 45%,transparent 68%);pointer-events:none;animation:wlGlow 7s ease-in-out infinite alternate}
 .welcome[data-step="hello"] .wl-glow,.welcome[data-step="done"] .wl-glow{top:2%}
 .wl-top{display:flex;align-items:center;gap:16px;position:relative}
@@ -1059,24 +1062,84 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .welcome[data-step="hello"] .wl-in,.welcome[data-step="done"] .wl-in{animation-delay:calc(var(--i,0)*160ms + 700ms)}
 .welcome[data-step="done"] .wl-in{animation-delay:calc(var(--i,0)*120ms + 150ms)}
 .wl-input{font-size:1.35rem!important;padding:16px!important;text-align:center;font-weight:600;border-color:var(--accent-dim)!important}
-.wl-form{display:flex;flex-direction:column;gap:12px}
-.wl-form .wl-input{font-size:1.1rem!important}
-.wl-form .hint{text-align:center;margin:0}
+/* the account screens (sign up, log in, reset): one tidy card, a label over each box, an icon inside it,
+   and anything that needs fixing written right under the box it's about */
+.welcome.still .wl-in{animation:none;opacity:1}
+.wl-card{display:flex;flex-direction:column;gap:20px;padding:24px 20px 22px;background:color-mix(in srgb,var(--surface) 86%,transparent);border:1px solid var(--line2);border-radius:10px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 30px 60px -34px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.03)}
+.wl-card.hud::before{inset:6px;opacity:.7}
+.wl-card .btn.big{margin-top:2px;padding:15px;border-radius:8px}
+.wl-field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.wl-lab{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.wl-box{position:relative;display:flex;align-items:center}
+.wl-box>svg{position:absolute;left:15px;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);pointer-events:none;transition:color .2s}
+.welcome .wl-box input{height:54px;padding:0 48px 0 45px;font-size:1rem;border-radius:8px;border-color:var(--line2);background:var(--sunk);transition:border-color .2s,box-shadow .2s,background-color .2s}
+.welcome .wl-box input::placeholder{color:var(--muted);opacity:.65}
+.welcome .wl-box input:focus{border-color:var(--accent);background:var(--bg);box-shadow:0 0 0 4px var(--accent-soft)}
+.wl-box:focus-within>svg{color:var(--accent)}
+.wl-tick{position:absolute;right:16px;font-style:normal;font-weight:700;font-size:.95rem;color:var(--accent);opacity:0;transform:scale(.4);transition:opacity .2s,transform .35s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.wl-box input:valid~.wl-tick,.wl-tick.on{opacity:1;transform:none}
+.wl-eye{position:absolute;right:5px;width:44px;height:44px;display:grid;place-items:center;background:none;border:0;border-radius:6px;color:var(--muted)}
+.wl-eye:hover{color:var(--ink);background:var(--accent-soft)}
+.wl-eye svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.wl-field.bad .wl-box input{border-color:var(--bad);box-shadow:0 0 0 4px var(--bad-soft)}
+.wl-field.bad .wl-box>svg{color:var(--bad)}
+.wl-field.bad .wl-tick{display:none}
+.wl-field.shake .wl-box{animation:wlShake .42s cubic-bezier(.36,.07,.19,.97)}
+.wl-err{display:flex;align-items:flex-start;gap:8px;font-size:.86rem;line-height:1.4;color:var(--bad);animation:wlIn .3s ease-out}
+.wl-err::before{content:"!";flex:none;width:16px;height:16px;margin-top:1px;border-radius:50%;background:var(--bad);color:var(--bg);font:700 .7rem/16px var(--body);text-align:center}
+.wl-formerr{padding:11px 13px;border-radius:8px;background:var(--bad-soft)}
+.wl-sugg{font-size:.88rem;color:var(--muted);animation:wlIn .3s ease-out}
+.wl-fix{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:3px}
+.wl-fix b{color:var(--accent)}
+.wl-meter{display:flex;align-items:center;gap:12px}
+.wl-segs{flex:none;display:grid;grid-template-columns:repeat(3,28px);gap:4px}
+.wl-segs i{height:4px;border-radius:2px;background:var(--line2);transition:background-color .3s,box-shadow .3s}
+.wl-meter small{font-size:.82rem;color:var(--muted);transition:color .3s}
+.wl-meter[data-lv="1"] .wl-segs i:first-child{background:var(--warn)}
+.wl-meter[data-lv="1"] small{color:var(--warn)}
+.wl-meter[data-lv="2"] .wl-segs i:nth-child(-n+2),.wl-meter[data-lv="3"] .wl-segs i{background:var(--accent);box-shadow:0 0 8px rgba(var(--accent-rgb),.45)}
+.wl-meter[data-lv="2"] small,.wl-meter[data-lv="3"] small{color:var(--accent)}
+.wl-caps{font-size:.82rem;color:var(--warn)}
+.wl-mini{background:none;border:0;padding:2px 0;color:var(--accent);font-family:var(--body);font-size:.86rem;font-weight:600;letter-spacing:0;text-transform:none}
+.wl-mini:hover{text-decoration:underline;text-underline-offset:3px}
+.wl-alt{text-align:center;color:var(--muted);font-size:.93rem}
+.wl-alt .wl-mini{font-size:inherit;margin-left:2px}
+.wl-note{padding:12px 14px;border-radius:8px;border:1px solid var(--accent-dim);background:var(--accent-soft);font-size:.92rem;line-height:1.45}
+.wl-invite{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--accent-dim);background:var(--accent-soft)}
+.wl-invite .avatar{border-radius:50%}
+.wl-invite>span:nth-child(2){flex:1;display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.wl-invite small{font-size:.76rem;color:var(--muted)}
+.wl-invite b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-invite .wl-tick{position:static}
+.wl-made{display:inline-flex;align-items:center;gap:7px}
+.wl-made i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font-size:.66rem;animation:wlPop .5s .2s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes wlShake{15%,55%{transform:translateX(-6px)}35%,75%{transform:translateX(6px)}}
 .wl-demo{opacity:.7}
 .wl-who{text-align:center}.wl-who .linkbtn{padding:0 2px}
 .acct-line{text-align:center;margin:6px 0 10px}.acct-line b{color:var(--ink);font-weight:600;word-break:break-all}
-.wl-themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:10px}
-.wl-theme{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 6px;background:var(--surface);border:1px solid var(--line2);border-radius:var(--r);color:var(--ink);transition:transform .15s,border-color .15s}
-.wl-theme.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 22px -6px var(--accent);transform:translateY(-2px)}
+/* the theme picker: every tile is a tiny preview of that look (its own background, its own colours) */
+.wl-themes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.wl-theme{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:7px 7px 10px;background:var(--surface);border:1px solid var(--line2);border-radius:10px;color:var(--ink);text-align:center;transition:transform .2s,border-color .2s,box-shadow .2s}
+.wl-theme:active{transform:scale(.97)}
+.wl-theme.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 10px 26px -12px var(--accent);transform:translateY(-2px)}
+.wl-theme.on::after{content:"✓";position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:.72rem;font-weight:700;line-height:22px;animation:wlPop .35s cubic-bezier(.3,1.6,.5,1)}
 .wl-theme b{font-size:.84rem;font-weight:600}
-.wl-sw{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line2)}
-.wl-sw i{width:24px;height:24px;border-radius:50%}
+.wl-sw{position:relative;height:62px;border-radius:7px;background:var(--t-bg);border:1px solid rgba(128,128,128,.22);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:5px;padding:9px}
+.wl-sw i:nth-child(1){position:absolute;top:9px;right:9px;width:15px;height:15px;border-radius:50%;border:2.5px solid var(--t-a)}
+.wl-sw i:nth-child(2){height:7px;width:64%;border-radius:4px;background:linear-gradient(90deg,var(--t-a),var(--t-b))}
+.wl-sw i:nth-child(3){height:4px;width:86%;border-radius:3px;background:var(--t-a);opacity:.28}
+/* the intro: a tap anywhere moves on, and it fades softly into the next screen */
+.welcome[data-step="hello"]{cursor:pointer}
+.wl-hi{letter-spacing:.32em;margin-bottom:-6px}
+.welcome .wl-body{transition:opacity .45s ease,transform .45s ease,filter .45s ease}
+.welcome.leaving .wl-body{opacity:0;transform:scale(.96);filter:blur(6px)}
 body{transition:background-color .4s}
 @keyframes wlIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 @keyframes wlDraw{to{stroke-dashoffset:0}}
 @keyframes wlPlate{to{transform:scaleY(1)}}
 @keyframes wlPop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
 @keyframes wlGlow{from{opacity:.7;transform:translateX(-50%) scale(1)}to{opacity:1;transform:translateX(-50%) scale(1.12)}}
+@media (prefers-reduced-motion:reduce){.wl-field.shake .wl-box,.wl-err,.wl-sugg,.wl-made i{animation:none}}
 @media (prefers-reduced-motion:reduce){.wl-in,.wl-logo path,.wl-logo rect,.wl-logo.done,.wl-glow{animation:none;opacity:1;stroke-dashoffset:0;transform:none}.wl-glow{transform:translateX(-50%)}}
 /* ---------- the daily check: a pop-up stack of cards over a blurred Today ---------- */
 .feelover{position:fixed;inset:0;z-index:25;display:grid;place-items:center;padding:20px;background:rgba(2,4,3,.62);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2);overflow:hidden;perspective:1100px}

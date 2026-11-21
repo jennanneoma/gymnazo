@@ -98,7 +98,8 @@ function switchUser(role,id){
 // draws the whole app again from the data. Simple, and fast enough for an app this size
 function render(){
   applyTheme();
-  if(ui.welcome){$('#app').innerHTML=welcomeView();if(ui.focus){const el=document.getElementById(ui.focus);if(el)el.focus();ui.focus=null}renderSheet();return}
+  if(!ui.welcome)ui.wlShown=null;
+  if(ui.welcome){$('#app').innerHTML=welcomeView();wlIntro();const pw=document.getElementById('wl-pw');if(pw&&ui.welcome&&ui.welcome.pw)pw.value=ui.welcome.pw;if(ui.focus){const el=document.getElementById(ui.focus);if(el)el.focus();ui.focus=null}renderSheet();return}
   if(ui.modePick){$('#app').innerHTML=modeChooser();renderSheet();return}
   const html=ui.user.role==='coach'?coachApp():clientApp();
   // pages without the top bar (first login, invite) still get the switcher, as a small floating button
@@ -137,11 +138,17 @@ function closeSheets(){ui.crop=null;ui.joinSheet=false;ui.demoSheet=false;if(ui.
 /* ---------- welcome helpers ---------- */
 // while something goes to the internet, the button shows "One moment…". If it fails, a friendly message says why
 // (it changes just the button, so the screen doesn't replay its fade-in animation)
-function wlWait(p){ui.wlBusy=true;const w=ui.welcome,step=w&&w.step,btn=()=>document.querySelector('.welcome .btn.primary');
-  const b=btn();if(b){b.disabled=true;b.dataset.label=b.textContent;b.textContent='One moment…'}
-  return p.catch(e=>toast(authMsg(e))).finally(()=>{ui.wlBusy=false;
-    if(ui.welcome&&ui.welcome===w&&w.step===step){const b2=btn();if(b2){b2.disabled=false;if(b2.dataset.label)b2.textContent=b2.dataset.label}return} // same screen: just wake the button up
-    render()})}
+function wlWait(p){ui.wlBusy=true;const w=ui.welcome,step=w&&w.step,b=document.querySelector('.welcome .btn.primary');
+  if(b){b.disabled=true;b.textContent='One moment…'}
+  return p.catch(e=>{ // on an account form, the problem shows right above the button. Anywhere else, a quick message
+    if(ui.welcome&&ui.welcome===w&&w.step===step&&['account','login','forgot','newpw'].includes(step))w.err={form:authMsg(e)};else toast(authMsg(e))})
+  .finally(()=>{ui.wlBusy=false;render()})}
+// the intro ("Welcome to Gymnazo") moves on by itself after about 3 seconds, fading into the theme picker.
+// A tap anywhere skips it. Each intro gets one timer (a new intro, like after logging out, gets a fresh one)
+function wlIntro(){const w=ui.welcome;if(!w||w.step!=='hello'||ui.wlIntroFor===w)return;ui.wlIntroFor=w;
+  const calm=matchMedia('(prefers-reduced-motion: reduce)').matches,go=()=>{if(ui.welcome===w&&w.step==='hello'){ACT['wl-start']();render()}};
+  setTimeout(()=>{if(ui.welcome!==w||w.step!=='hello')return;const m=document.querySelector('.welcome');
+    if(m&&m.classList&&!calm){m.classList.add('leaving');setTimeout(go,450)}else go()},calm?1800:3000)}
 // someone accepting their coach's invite in the welcome
 function welcomeJoined(c,name){c.invitedAs=c.name;c.name=name;c.selfName=name;c.status='active';c.joinedTs=Date.now();c.joinSeen=false;c.joinedAt=today();
   (c.notes=c.notes||[]).unshift({id:uid(),text:`Welcome! You're now connected to ${coachOf(c).name}.`,ts:Date.now()});switchUser('client',c.id)}
@@ -246,26 +253,35 @@ const ACT={
   'delete-client'(el){const c=client(el.dataset.id),keeps=live()&&!isInvited(c);S.clients=S.clients.filter(x=>x.id!==c.id);ui.confirm=null;ui.clientSheet=null;ui.view='clients';if(ui.user.id===c.id)ui.user={role:'coach',id:c.coachId};save();
     toast(keeps?`${c.name} is no longer your client. Their own history stays with them.`:`${c.name} and their history were deleted.`)},
   // the welcome for brand new people
-  'wl-start'(){ui.welcome.step='path'},
+  // "Get started", or "Create an account" from the log in screen (back to the account form if that's where they came from)
+  // the intro moving on to the theme picker, or "Create an account" on the log in screen (back to wherever they came from)
+  'wl-start'(){const w=ui.welcome;w.step=w.from&&!WL_SIDE.includes(w.from)?w.from:'theme';w.from=null;w.note=''},
   // demo: opens the sample account. With real accounts: the log in screen
-  'wl-login'(){if(live()){ui.welcome.step='login';return}ui.welcome=null;try{localStorage.setItem('gymnazo-welcomed','1')}catch(e){}},
+  'wl-login'(){if(live()){const w=ui.welcome;if(!WL_SIDE.includes(w.step))w.from=w.step;w.step='login';return}ui.welcome=null;try{localStorage.setItem('gymnazo-welcomed','1')}catch(e){}},
   // "Look around first": the demo with sample data, no account needed
   'wl-demo'(){try{localStorage.setItem('gymnazo-demo-on','1')}catch(e){}location.reload();return'skip'},
-  'wl-path'(el){const w=ui.welcome;w.path=el.dataset.v;w.step=w.path==='coached'?'code':'name'}, // no auto-focus: the keyboard waits until they tap the box
-  'wl-nocode'(){const w=ui.welcome;w.path='solo';w.code='';w.step='name';toast('No problem. You can add your coach later in Settings.')},
+  'wl-path'(el){const w=ui.welcome;w.path=el.dataset.v;w.step=wlAfter(w,'path')}, // no auto-focus: the keyboard waits until they tap the box
+  'wl-nocode'(){const w=ui.welcome;w.path='solo';w.code='';w.step=wlAfter(w,'path');toast('No problem. You can add your coach later in Settings.')},
   'wl-theme'(el){ui.welcome.theme=el.dataset.v},
-  'wl-back'(){const w=ui.welcome,side={login:'hello',check:'hello',forgot:'login',sent:'login'};
-    if(side[w.step]){w.step=side[w.step];return}
-    const o=WL_ORDER(w),i=o.indexOf(w.step);w.step=o[Math.max(0,i-1)]},
+  'wl-back'(){const w=ui.welcome;
+    // log in goes back to wherever they opened it from. Forgot and sent go back to log in
+    if(w.step==='login'){w.step=w.from||'theme';w.from=null;w.note='';return}
+    if(WL_SIDE.includes(w.step)){w.step=w.step==='check'?'theme':'login';return}
+    const p=wlBefore(w);if(p)w.step=p},
+  // show or hide the password (changes just the box, so the cursor stays put)
+  'wl-eye'(){const w=ui.welcome;w.eye=!w.eye;const i=$('#wl-pw'),b=document.querySelector('.wl-eye');
+    if(!i||!b)return;i.type=w.eye?'text':'password';b.setAttribute('aria-pressed',String(w.eye));b.setAttribute('aria-label',(w.eye?'Hide':'Show')+' password');b.innerHTML=w.eye?WL_IC.eyeOff:WL_IC.eye;return'skip'},
+  // they tapped "Did you mean …@gmail.com?"
+  'wl-fix'(){const w=ui.welcome;if(!w.sugg)return'skip';w.email=w.sugg;w.sugg='';if(w.err)delete w.err.email;ui.focus='wl-pw'},
   'wl-forgot'(){ui.welcome.step='forgot'},
   'wl-next'(){const w=ui.welcome;
     if(w.step==='code'){const code=codeOf(w.code);
       if(live()){ // ask the database if the code is real (it only tells us which coach sent it)
         wlWait(cloudInviteInfo(code).then(info=>{if(!info){toast("That code doesn't match an invite. Check it with your coach.");return}
-          w.code=code;w.coachName=info.coach;const o=WL_ORDER(w);w.step=o[o.indexOf('code')+1]}));return'skip'}
+          w.code=code;w.coachName=info.coach;w.step=wlAfter(w,'code')}));return'skip'}
       if(!S.clients.some(x=>isInvited(x)&&x.inviteCode===code)){toast("That code doesn't match an invite. Check it with your coach.");return'skip'}w.code=code}
     if(w.step==='name'&&!w.name.trim())return'skip';
-    const o=WL_ORDER(w);w.step=o[o.indexOf(w.step)+1]},
+    const n=wlAfter(w,w.step);if(n)w.step=n},
   'wl-finish'(){const w=ui.welcome,name=w.name.trim();
     if(w.path==='coach'){const co={id:uid(),name,business:'',logo:null,onboarded:false,notifRead:Date.now()};S.coaches.push(co);switchUser('coach',co.id)}
     else if(w.path==='coached'&&live()){ // the invite becomes their training, then the welcome ends
@@ -278,7 +294,8 @@ const ACT={
     welcomeEnd(w)},
   // log out: back to the first screen
   logout(){closeSheets();ui.confirm=null;ui.modePick=false;
-    if(live()){ui.welcome=wlNew('hello');render();wlWait(cloudSignOut().then(()=>{ui.welcome=wlNew('hello')}));scrollTo(0,0);return'skip'}
+    // with real accounts, logging out lands on the log in screen (back goes to the start)
+    if(live()){const out=()=>({...wlNew('login'),from:'theme'});ui.welcome=out();render();wlWait(cloudSignOut().then(()=>{ui.welcome=out()}));scrollTo(0,0);return'skip'}
     if(cloudReady()&&demoOn){try{localStorage.removeItem('gymnazo-demo-on')}catch(e){}location.reload();return'skip'} // leaving the demo
     ui.welcome={step:'hello',path:null,code:'',name:'',theme:themeOf()};try{localStorage.removeItem('gymnazo-welcomed');localStorage.removeItem('gymnazo-user')}catch(e){}scrollTo(0,0)},
   'welcome-replay'(){ui.demoSheet=false;ui.welcome={step:'hello',path:null,code:'',name:'',theme:'lime'};scrollTo(0,0)},
@@ -523,7 +540,13 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   const t=e.target,ds=t.dataset;
   if(ds.savefrom!==undefined){ui.saveFrom=t.value;return}
-  if(ds.wl&&ui.welcome){ui.welcome[ds.wl]=t.value;const b=$('#wl-next');if(b)b.disabled=!t.value.trim();return}
+  if(ds.wl&&ui.welcome){const w=ui.welcome;w[ds.wl]=t.value;
+    // the password meter moves as they type
+    if(ds.wl==='pw'){const m=$('#wl-meter'),mt=$('#wl-meter-t');if(m&&mt){const [lv,lt]=pwLevel(t.value,w.email);m.dataset.lv=lv;mt.textContent=lt}}
+    if(ds.wl==='email'&&w.sugg){w.sugg='';const s=$('#wl-sugg');if(s)s.hidden=true}
+    // fixing a box takes its red warning away straight away
+    if(w.err&&w.err[ds.wl]){delete w.err[ds.wl];const f=t.closest&&t.closest('.wl-field');if(f){f.classList.remove('bad');const m=f.querySelector('.wl-err');if(m)m.remove();t.removeAttribute('aria-invalid')}}
+    const b=$('#wl-next');if(b)b.disabled=!t.value.trim();return}
   if(ds.cropzoom!==undefined&&ui.crop){cropZoomTo(+t.value);return}
   if(ds.gsearch!==undefined){ui.sq=t.value;$('#gs-results').innerHTML=appSearchResults(t.value);return}
   if(ds.pf){curDraft()[ds.pf]=t.value;const h=$('#cycle-hint');if(h)h.textContent=cycleHint(curDraft());return}
@@ -547,7 +570,14 @@ document.addEventListener('input',e=>{
   if(ds.libsearch!==undefined){ui.libQ=t.value;$('#lib-list').innerHTML=libItems();return}
   if(ds.sf){const c=client(ui.user.id),r=dayAt(c,today()).day.exercises.find(x=>x.id===ds.row);getSets(c,r)[+ds.i][ds.sf]=t.value;save();return}
 });
+// "Caps Lock is on" under the password box
+const capsCheck=e=>{if(e.target&&e.target.id==='wl-pw'&&e.getModifierState){const c=$('#wl-caps');if(c)c.hidden=!e.getModifierState('CapsLock')}};
+document.addEventListener('keyup',capsCheck);
+// leaving the email box: offer a fix for a likely typo, like "gmial.com"
+document.addEventListener('focusout',e=>{const t=e.target,w=ui.welcome;if(!w||!t||t.id!=='wl-email')return;
+  const s=mailFix(t.value),box=$('#wl-sugg');w.sugg=s;if(box){box.innerHTML=s?wlSuggHtml(s):'';box.hidden=!s}});
 document.addEventListener('keydown',e=>{
+  capsCheck(e);
   // Ctrl+K or Cmd+K opens search, Enter picks the top result
   if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();ACT['search-open']();return}
   if(e.key==='Enter'&&e.target.id==='gs-q'){e.preventDefault();const b=$('#gs-results .gs-row');if(b)b.click();return}
@@ -592,17 +622,25 @@ document.addEventListener('submit',e=>{
   if(k==='edit-client'){const c=client(ui.clientId),n=String(fd.get('name')||'').trim();if(!n){toast('Enter a name.');return}c.name=n;c.goal=String(fd.get('goal')||'').trim();ui.clientSheet=null;save();render();renderSheet();toast('Client details saved.');return}
   if(k==='my-name'){const c=client(ui.user.id),n=String(fd.get('name')||'').trim();if(!n){toast('Enter a name.');return}c.selfName=n;ui.nameSheet=false;save();render();toast(`Got it, ${first(n)}.`);return}
   // the welcome's account screens
-  if(k==='wl-signup'||k==='wl-signin'||k==='wl-reset'){const w=ui.welcome,email=String(fd.get('email')||'').trim(),pw=String(fd.get('pw')||'');w.email=email;
-    if(!okEmail(email)){toast("That email doesn't look right.");return}
+  if(k==='wl-signup'||k==='wl-signin'||k==='wl-reset'){const w=ui.welcome,email=String(fd.get('email')||'').trim(),pw=String(fd.get('pw')||'');w.email=email;w.pw=pw;
+    // a problem goes right under the box it's about, the box gives a little shake, and the cursor lands there
+    const stop=(f,msg)=>{w.err={[f]:msg};w.shake=true;ui.focus='wl-'+f;render()};
+    if(!email)return stop('email','Enter your email.');
+    if(!okEmail(email))return stop('email',"That email doesn't look right. Check for typos.");
     if(k==='wl-reset'){wlWait(cloudSendReset(email).then(()=>{w.step='sent'}));return}
-    if(!pw){toast('Enter your password.');return}
-    if(k==='wl-signin'){wlWait(cloudSignIn(email,pw).then(user=>cloudSignedIn(user)));return}
-    if(pw.length<8){toast('Use at least 8 characters for your password.');return}
-    wlWait(cloudSignUp(email,pw,w.name.trim()).then(r=>{
-      // email confirmation switched on: remember their answers, so after they confirm and log in they land in the app
-      if(r==='confirm'){try{localStorage.setItem('gymnazo-welcome',JSON.stringify({path:w.path,code:w.code,name:w.name,theme:w.theme}))}catch(e){}w.step='check';return}
-      w.step='done'}));return}
-  if(k==='wl-newpw'){const pw=String(fd.get('pw')||'');if(pw.length<8){toast('Use at least 8 characters for your password.');return}
+    if(!pw)return stop('pw','Enter your password.');
+    if(k==='wl-signin'){wlWait(cloudSignIn(email,pw).then(user=>{w.pw='';return cloudSignedIn(user)}));return}
+    if(pw.length<8)return stop('pw','Use at least 8 characters.');
+    // a likely typo in the email ("gmial.com"): ask once before making the account, so password reset emails can reach them
+    const fix=mailFix(email);if(fix&&w.asked!==email){w.asked=email;w.sugg=fix;render();return}
+    wlWait(cloudSignUp(email,pw).then(r=>{w.pw='';
+      // email confirmation switched on: remember their answers, so after they confirm and log in they carry on from here
+      if(r==='confirm'){try{localStorage.setItem('gymnazo-welcome',JSON.stringify({path:w.path,code:w.code,coachName:w.coachName,theme:w.theme}))}catch(e){}w.step='check';return}
+      w.made=true;w.step=wlAfter(w,'account')}) // account made: now their name and look
+    .catch(e=>{ // already have an account with this email: off to log in, with their email and password already filled in
+      if(/already registered|already exists/i.test(String(e&&e.message))){w.pw=pw;w.step='login';w.from='account';w.note='You already have an account with this email. Log in instead.';ui.focus='wl-pw';return}
+      throw e}));return}
+  if(k==='wl-newpw'){const w=ui.welcome,pw=String(fd.get('pw')||'');w.pw=pw;if(pw.length<8){w.err={pw:'Use at least 8 characters.'};w.shake=true;ui.focus='wl-pw';render();return}
     wlWait(cloudNewPassword(pw).then(user=>{toast('Password changed.');ui.welcome=null;return cloudSignedIn(user)}));return}
   if(k==='join-coach'){const me=client(ui.user.id),code=codeOf(fd.get('code'));
     if(live()){cloudJoin(code,me.id).then(r=>{

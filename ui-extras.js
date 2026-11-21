@@ -360,55 +360,103 @@ function settingsView(){
 
 
 /* ---------- the welcome: what a brand new person sees the first time they open the app ----------
-   A few short questions decide their experience: train on my own, train with a coach (invite code), or coach others.
-   Then their name and a theme. ui.welcome = {step, path, code, name, theme}. */
-// with real accounts, "account" (email and password) comes just before the end. Once signed in, hello and account are skipped
-const WL_ORDER=w=>{const signed=cloud.on&&!!cloud.user;
-  return[...(signed?[]:['hello']),'path',...(w.path==='coached'?['code']:[]),'name','theme',...(live()&&!signed?['account']:[]),'done']};
+   First a short intro ("Welcome to Gymnazo") that moves on by itself, then they pick a theme, so everything after is in their colours.
+   Then: train on my own, train with a coach (invite code), or coach others. With real accounts they make their account next, then their name.
+   ui.welcome = {step, path, code, name, theme, email, pw, err, made, from, note, sugg} */
+// the steps in order. "made" = they made their account during this welcome, so it still counts on the progress bar
+const WL_ORDER=w=>{const signed=cloud.on&&!!cloud.user,acct=live()&&(!signed||!!w.made);
+  return['hello','theme','path',...(w.path==='coached'?['code']:[]),...(acct?['account']:[]),'name','done']};
+// back never replays the intro, and once you're signed in the account screen is behind you: back and next jump over them
+const wlSkip=s=>s==='hello'||(cloud.on&&!!cloud.user&&s==='account');
+const wlAfter=(w,s)=>{const o=WL_ORDER(w);let j=o.indexOf(s)+1;while(j<o.length-1&&wlSkip(o[j]))j++;return o[j]};
+const wlBefore=w=>{const o=WL_ORDER(w);let j=o.indexOf(w.step)-1;while(j>=0&&wlSkip(o[j]))j--;return j>=0?o[j]:null};
 // the little screens off to the side of the welcome: log in, forgot password, check your email
 const WL_SIDE=['login','forgot','sent','check','newpw'];
+
+// how strong a new password is: 0 too short, 1 easy to guess, 2 good, 3 strong. Comes with the words to show
+function pwLevel(p,email=''){const n=p.length,low=p.toLowerCase(),me=String(email).split('@')[0].toLowerCase();
+  if(n<8)return[0,n?`${8-n} more character${8-n>1?'s':''}`:'At least 8 characters'];
+  if(/^(.)\1+$/.test(p)||/^\d+$/.test(p)||/password|qwerty|12345|letmein|iloveyou|gymnazo/.test(low)||(me.length>3&&low.includes(me)))return[1,'Easy to guess'];
+  const kinds=[/[a-z]/,/[A-Z]/,/\d/,/[^A-Za-z0-9]/].filter(r=>r.test(p)).length;
+  if(n>=14||(n>=10&&kinds>=3))return[3,'Strong'];
+  if(n>=10||kinds>=2)return[2,'Good'];
+  return[1,'Okay. Longer is stronger'];
+}
+// spots typos in the big email providers ("gmial.con") so reset emails don't go nowhere
+const MAIL_TOP=['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','live.com','aol.com','me.com','ymail.com','googlemail.com','hotmail.co.uk','yahoo.co.uk','proton.me','protonmail.com','msn.com'];
+const MAIL_OK=[...MAIL_TOP,'mail.com','gmx.com','gmx.de','gmx.net','web.de','yandex.com','zoho.com','att.net','comcast.net','verizon.net','yahoo.fr','hotmail.fr','orange.fr','live.co.uk','outlook.co.uk','btinternet.com','sky.com','qq.com','163.com','mac.com'];
+const editDist=(a,b)=>{const d=[];for(let i=0;i<=a.length;i++){d[i]=[i];for(let j=1;j<=b.length;j++)d[i][j]=!i?j:Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1),
+  i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]?d[i-2][j-2]+1:99)}return d[a.length][b.length]}; // swapped letters count as one slip
+function mailFix(s){const m=String(s).trim().toLowerCase().match(/^([^\s@]+)@([^\s@]+)$/);if(!m||MAIL_OK.includes(m[2]))return'';
+  let best='',bd=99;for(const h of MAIL_TOP){const x=editDist(m[2],h);if(x<bd){bd=x;best=h}}
+  return bd<=(best.length>=9?2:1)?m[1]+'@'+best:''}
+const wlSuggHtml=s=>{const [u,h]=s.split('@');return`Did you mean <button type="button" class="wl-fix" data-act="wl-fix">${esc(u)}@<b>${esc(h)}</b></button>?`};
+const WL_IC={
+  mail:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.8 7l8.2 6 8.2-6"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/><path d="M12 14.5v2"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 3.5l17 17"/><path d="M10.4 5.7A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-2.9 3.7M6.6 6.9C4 8.6 2.5 12 2.5 12S6 18.5 12 18.5a9 9 0 0 0 4.7-1.3"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
+};
 function welcomeView(){
   const w=ui.welcome,order=WL_ORDER(w),i=order.indexOf(w.step),pct=Math.round(Math.max(0,i)/(order.length-1)*100),busy=!!ui.wlBusy;
-  const side=WL_SIDE.includes(w.step);
-  const top=w.step==='hello'||w.step==='newpw'||i===0?'':side?`<div class="wl-top"><button class="back" data-act="wl-back">‹ Back</button></div>`
-    :`<div class="wl-top"><button class="back" data-act="wl-back">‹ Back</button><div class="wl-bar" aria-hidden="true"><i style="width:${pct}%"></i></div></div>`;
+  // drawn again on the same screen (a typo, a theme tap): no replaying the fade-in. A new screen starts with no errors
+  const still=ui.wlShown===w.step;ui.wlShown=w.step;if(!still)w.err=null;
+  const side=WL_SIDE.includes(w.step),prev=side?null:wlBefore(w),err=w.err||{},shake=w.shake;w.shake=false;
+  const back='<button class="back" data-act="wl-back">‹ Back</button>';
+  const top=w.step==='hello'||w.step==='newpw'||(!side&&!prev&&i<=0)?'':side?`<div class="wl-top">${back}</div>`
+    :`<div class="wl-top">${prev?back:''}<div class="wl-bar" aria-hidden="true"><i style="width:${pct}%"></i></div></div>`;
   const card=(v,title,sub,icon,n)=>`<button class="modecard wl-in" style="--i:${n}" data-act="wl-path" data-v="${v}"><span class="mc-ic" aria-hidden="true">${icon}</span><span class="mc-txt"><b>${title}</b><small>${sub}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
   // the big button at the bottom. While it's waiting on the internet it says so and can't be tapped twice
   const go=(label,attrs='')=>`<button class="btn primary big" ${attrs} ${busy?'disabled aria-busy="true"':''}>${busy?'One moment…':label}</button>`;
-  const email=(n,auto='email')=>`<input class="wl-input wl-in" style="--i:${n}" type="email" name="email" id="wl-email" data-wl="email" value="${esc(w.email||'')}" placeholder="Email" autocomplete="${auto}" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="120" aria-label="Email" required>`;
-  const pw=(n,auto)=>`<input class="wl-input wl-in" style="--i:${n}" type="password" name="pw" id="wl-pw" placeholder="Password" autocomplete="${auto}" ${auto==='new-password'?'minlength="8"':''} maxlength="72" aria-label="Password" required>`;
+  // the account boxes: a label on top, an icon inside, and the problem (if any) right under the box it's about
+  const bad=k=>err[k]?` bad${shake?' shake':''}`:'';
+  const errLine=k=>err[k]?`<p class="wl-err" id="wl-${k}-err">${esc(err[k])}</p>`:'';
+  const emailF=auto=>`<div class="wl-field${bad('email')}"><label for="wl-email">Email</label>
+    <div class="wl-box">${WL_IC.mail}<input type="email" name="email" id="wl-email" data-wl="email" value="${esc(w.email||'')}" placeholder="you@example.com" autocomplete="${auto}" inputmode="email" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="120" pattern="[^@\\s]+@[^@\\s]+\\.[^@\\s]+" required${err.email?' aria-invalid="true" aria-describedby="wl-email-err"':''}><i class="wl-tick" aria-hidden="true">✓</i></div>
+    <p class="wl-sugg" id="wl-sugg"${w.sugg?'':' hidden'}>${w.sugg?wlSuggHtml(w.sugg):''}</p>${errLine('email')}</div>`;
+  const pwF=(isNew,auto)=>{const [lv,lt]=pwLevel(w.pw||'',w.email);return`<div class="wl-field${bad('pw')}">
+    <div class="wl-lab"><label for="wl-pw">${w.step==='newpw'?'New password':'Password'}</label>${w.step==='login'?'<button type="button" class="wl-mini" data-act="wl-forgot">Forgot password?</button>':''}</div>
+    <div class="wl-box">${WL_IC.lock}<input type="${w.eye?'text':'password'}" name="pw" id="wl-pw" data-wl="pw" placeholder="${isNew?'8 or more characters':'Your password'}" autocomplete="${auto}" ${isNew?'minlength="8" ':''}maxlength="72" autocapitalize="off" autocorrect="off" spellcheck="false" required aria-describedby="${err.pw?'wl-pw-err':isNew?'wl-meter-t':''}"${err.pw?' aria-invalid="true"':''}>
+    <button type="button" class="wl-eye" data-act="wl-eye" aria-label="${w.eye?'Hide':'Show'} password" aria-pressed="${!!w.eye}">${w.eye?WL_IC.eyeOff:WL_IC.eye}</button></div>
+    ${isNew?`<div class="wl-meter" id="wl-meter" data-lv="${lv}"><span class="wl-segs" aria-hidden="true"><i></i><i></i><i></i></span><small id="wl-meter-t">${lt}</small></div>`:''}
+    <p class="wl-caps" id="wl-caps" hidden>Caps Lock is on</p>${errLine('pw')}</div>`};
+  const formErr=err.form?`<p class="wl-err wl-formerr" role="alert">${esc(err.form)}</p>`:'';
   let body='';
-  if(w.step==='hello')body=`<div class="wl-hero"><span class="wl-logo">${APP_MARK}</span><h1 class="wl-in" style="--i:2">Gymnazo</h1><p class="wl-tag wl-in" style="--i:3">Train. Track. Get stronger.</p></div>
-    <div class="wl-foot wl-in" style="--i:5"><button class="btn primary big" data-act="wl-start">Get started</button><button class="linkbtn" data-act="wl-login">I already have an account</button>${live()?'<button class="linkbtn wl-demo" data-act="wl-demo">Look around first</button>':''}</div>`;
-  else if(w.step==='path')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Welcome</p><h1>What brings you here?</h1></header>
+  if(w.step==='hello')body=`<div class="wl-hero"><span class="wl-logo">${APP_MARK}</span><p class="wl-tag wl-hi wl-in" style="--i:2">Welcome to</p><h1 class="wl-in" style="--i:3">Gymnazo</h1><p class="wl-tag wl-in" style="--i:4">Train. Track. Get stronger.</p></div>`;
+  else if(w.step==='path')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">About you</p><h1>What brings you here?</h1></header>
     ${card('solo','Train on my own','Build your own workouts and track your progress.',ICON.today,1)}
     ${card('coached','Train with my coach',"Your coach sent you a code. They'll set your workouts.",ICON.invites,2)}
     ${card('coach','I coach others',"Plan your clients' workouts and follow their progress.",ICON.clients,3)}
     <p class="hint wl-in" style="--i:4">You can change this later, and use more than one.</p>
     ${cloud.on&&cloud.user?`<p class="hint wl-in wl-who" style="--i:5">Signed in as ${esc(cloud.user.email)}. <button class="linkbtn" data-act="logout">Not you?</button></p>`:''}`;
-  else if(w.step==='account')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Last step</p><h1>Save your account</h1><p class="sub">So your training is safe, on any phone.</p></header>
-    <form class="wl-form" data-form="wl-signup">${email(1)}${pw(2,'new-password')}<p class="hint wl-in" style="--i:3">At least 8 characters.</p>
-    <div class="wl-foot wl-in" style="--i:4">${go('Create account')}<button type="button" class="linkbtn" data-act="wl-login">I already have an account</button></div></form>`;
-  else if(w.step==='login')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Welcome back</p><h1>Log in</h1></header>
-    <form class="wl-form" data-form="wl-signin">${email(1)}${pw(2,'current-password')}
-    <div class="wl-foot wl-in" style="--i:3">${go('Log in')}<button type="button" class="linkbtn" data-act="wl-forgot">Forgot password?</button><button type="button" class="linkbtn" data-act="wl-start">New here? Get started</button></div></form>`;
-  else if(w.step==='forgot')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">No stress</p><h1>Reset your password</h1><p class="sub">We'll email you a link to choose a new one.</p></header>
-    <form class="wl-form" data-form="wl-reset">${email(1)}<div class="wl-foot wl-in" style="--i:2">${go('Send link')}</div></form>`;
+  else if(w.step==='account'){
+    // the words fit what they picked on the screen before
+    const sub={solo:'Your workouts and progress stay saved, on any phone.',coached:"One quick step, then you're connected.",coach:'Your clients, plans and messages, saved on every device.'}[w.path]||'Your training stays saved, on any phone.';
+    const inv=w.path==='coached'&&w.coachName?`<div class="wl-invite wl-in" style="--i:1"><span class="avatar">${esc(initials(w.coachName))}</span><span><small>Invited by</small><b>${esc(w.coachName)}</b></span><i class="wl-tick on" aria-hidden="true">✓</i></div>`:'';
+    body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">${w.path==='coach'?'Coach account':'New account'}</p><h1>Create your account</h1><p class="sub">${sub}</p></header>${inv}
+    <form class="wl-card hud wl-in" style="--i:2" data-form="wl-signup" novalidate>${emailF('email')}${pwF(true,'new-password')}${formErr}${go('Create account')}</form>
+    <p class="wl-alt wl-in" style="--i:3">Already have an account? <button type="button" class="wl-mini" data-act="wl-login">Log in</button></p>`}
+  else if(w.step==='login')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Welcome back</p><h1>Log in</h1><p class="sub">Pick up right where you left off.</p></header>
+    ${w.note?`<p class="wl-note wl-in" style="--i:1" role="status">${esc(w.note)}</p>`:''}
+    <form class="wl-card hud wl-in" style="--i:2" data-form="wl-signin" novalidate>${emailF('username')}${pwF(false,'current-password')}${formErr}${go('Log in')}</form>
+    <p class="wl-alt wl-in" style="--i:3">New here? <button type="button" class="wl-mini" data-act="wl-start">Create an account</button></p>`;
+  else if(w.step==='forgot')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">No stress</p><h1>Reset your password</h1><p class="sub">Enter your email and we'll send you a link to choose a new one.</p></header>
+    <form class="wl-card hud wl-in" style="--i:1" data-form="wl-reset" novalidate>${emailF('email')}${formErr}${go('Send link')}</form>`;
   else if(w.step==='sent'||w.step==='check')body=`<div class="wl-hero"><span class="wl-logo">${APP_MARK}</span><h1 class="wl-in" style="--i:2">Check your email</h1>
     <p class="wl-tag wl-in" style="--i:3">${w.step==='sent'?`If there's an account for ${esc(w.email)}, a reset link is on its way.`:`We sent a link to ${esc(w.email)}. Tap it, then come back here and log in.`}</p></div>
     <div class="wl-foot wl-in" style="--i:5"><button class="btn primary big" data-act="wl-login">Back to log in</button></div>`;
-  else if(w.step==='newpw')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Almost done</p><h1>Choose a new password</h1></header>
-    <form class="wl-form" data-form="wl-newpw">${pw(1,'new-password')}<p class="hint wl-in" style="--i:2">At least 8 characters.</p><div class="wl-foot wl-in" style="--i:3">${go('Save password')}</div></form>`;
+  else if(w.step==='newpw')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Almost done</p><h1>Choose a new password</h1><p class="sub">You'll use it to log in from now on.</p></header>
+    <form class="wl-card hud wl-in" style="--i:1" data-form="wl-newpw" novalidate>${pwF(true,'new-password')}${formErr}${go('Save password')}</form>`;
   else if(w.step==='code')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Your coach</p><h1>Enter your invite code</h1><p class="sub">It's in the link your coach sent you.</p></header>
     <input class="wl-input wl-in" style="--i:1" id="wl-code" data-wl="code" value="${esc(w.code)}" placeholder="e.g. K7P2QX" autocapitalize="characters" autocomplete="off" maxlength="80" aria-label="Invite code">
     <div class="wl-foot wl-in" style="--i:2"><button class="btn primary big" id="wl-next" data-act="wl-next" ${w.code.trim()&&!busy?'':'disabled'}>${busy?'Checking…':'Continue'}</button><button class="linkbtn" data-act="wl-nocode">I don't have a code yet</button></div>`;
-  else if(w.step==='name')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">${w.path==='coach'?'Coach':w.path==='coached'?'Almost there':'Your training'}</p><h1>What should we call you?</h1></header>
+  else if(w.step==='name')body=`<header class="hd wl-in" style="--i:0">${w.made?'<p class="eyebrow wl-made"><i aria-hidden="true">✓</i> Account created</p>':`<p class="eyebrow">${w.path==='coach'?'Coach':w.path==='coached'?'Almost there':'Your training'}</p>`}<h1>What should we call you?</h1></header>
     <input class="wl-input wl-in" style="--i:1" id="wl-name" data-wl="name" value="${esc(w.name)}" placeholder="Your first name" autocomplete="given-name" maxlength="40" aria-label="Your name">
     <div class="wl-foot wl-in" style="--i:2"><button class="btn primary big" id="wl-next" data-act="wl-next" ${w.name.trim()?'':'disabled'}>Continue</button></div>`;
-  else if(w.step==='theme')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Make it yours</p><h1>Pick your look</h1></header>
-    <div class="wl-themes">${THEMES.map(([k,n,,bg,ac,ac2],j)=>`<button class="wl-theme wl-in ${w.theme===k?'on':''}" style="--i:${j+1}" data-act="wl-theme" data-v="${k}" aria-pressed="${w.theme===k}"><span class="wl-sw" style="background:${bg}"><i style="background:linear-gradient(135deg,${ac},${ac2})"></i></span><b>${n}</b></button>`).join('')}</div>
-    <div class="wl-foot"><button class="btn primary big" data-act="wl-next">Continue</button></div>`;
+  else if(w.step==='theme')body=`<header class="hd wl-in" style="--i:0"><p class="eyebrow">Make it yours</p><h1>Pick your look</h1><p class="sub">Tap one to try it. You can change it any time in Settings.</p></header>
+    <div class="wl-themes">${THEMES.map(([k,n,,bg,ac,ac2],j)=>`<button class="wl-theme wl-in ${w.theme===k?'on':''}" style="--i:${j+1};--t-bg:${bg};--t-a:${ac};--t-b:${ac2}" data-act="wl-theme" data-v="${k}" aria-pressed="${w.theme===k}"><span class="wl-sw" aria-hidden="true"><i></i><i></i><i></i></span><b>${n}</b></button>`).join('')}</div>
+    <div class="wl-foot wl-in" style="--i:8"><button class="btn primary big" data-act="wl-next">Continue</button><button class="linkbtn" data-act="wl-login">I already have an account</button>${live()?'<button class="linkbtn wl-demo" data-act="wl-demo">Look around first</button>':''}</div>`;
   else body=`<div class="wl-hero"><span class="wl-logo done">${APP_MARK}</span><h1 class="wl-in" style="--i:2">You're in, ${esc(first(w.name.trim()))}</h1><p class="wl-tag wl-in" style="--i:3">${w.path==='coach'?"Next, a quick setup for your coaching.":w.path==='coached'?'Your coach is connected.':"Next, build your first routine."}</p></div>
     <div class="wl-foot wl-in" style="--i:5">${go("Let's go",'data-act="wl-finish"')}</div>`;
-  return `<main class="screen welcome" data-step="${w.step}"><span class="wl-glow" aria-hidden="true"></span>${top}<div class="wl-body">${body}</div></main>`;
+  return `<main class="screen welcome${still?' still':''}" data-step="${w.step}"${w.step==='hello'?' data-act="wl-start" aria-label="Welcome to Gymnazo. Tap to start"':''}><span class="wl-glow" aria-hidden="true"></span>${top}<div class="wl-body">${body}</div></main>`;
 }

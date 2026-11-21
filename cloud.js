@@ -285,7 +285,7 @@ async function cloudSignedIn(user){
   if(!myCoachRec()&&!myClientRec()){
     // a brand new account (or one that confirmed their email): pick up the welcome where they left it
     let w=null;try{w=JSON.parse(localStorage.getItem('gymnazo-welcome'))}catch(e){}
-    if(w&&w.path&&w.name){ui.welcome={...wlNew('done'),...w,step:'done'};render();return}
+    if(w&&w.path){ui.welcome={...wlNew('name'),...w,made:true,step:'name'};render();return}
     if(!ui.welcome||['hello','login','check','newpw'].includes(ui.welcome.step))ui.welcome=wlNew('path');
     render();return;
   }
@@ -307,8 +307,8 @@ function authMsg(e){const m=String(e&&e.message||e||'').toLowerCase();
 }
 const okEmail=s=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s).trim());
 
-async function cloudSignUp(email,pw,name){
-  const {data,error}=await cloud.db.auth.signUp({email:email.trim(),password:pw,options:{emailRedirectTo:appUrl(),data:{name}}});
+async function cloudSignUp(email,pw){
+  const {data,error}=await cloud.db.auth.signUp({email:email.trim(),password:pw,options:{emailRedirectTo:appUrl()}});
   if(error)throw error;
   if(data.session){cloud.user={id:data.user.id,email:data.user.email};cloud.on=true;return 'in'}
   return 'confirm'; // email confirmation is switched on: they need to tap the link first
