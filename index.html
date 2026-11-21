@@ -1062,17 +1062,17 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .welcome[data-step="hello"] .wl-in,.welcome[data-step="done"] .wl-in{animation-delay:calc(var(--i,0)*160ms + 700ms)}
 .welcome[data-step="done"] .wl-in{animation-delay:calc(var(--i,0)*120ms + 150ms)}
 .wl-input{font-size:1.35rem!important;padding:16px!important;text-align:center;font-weight:600;border-color:var(--accent-dim)!important}
-/* the account screens (sign up, log in, reset): one tidy card, a label over each box, an icon inside it,
-   and anything that needs fixing written right under the box it's about */
+/* the account screens (sign up, log in, reset): just the boxes and the button, no card around them.
+   Each box has an icon and a hint inside, and anything that needs fixing is written right under it */
 .welcome.still .wl-in{animation:none;opacity:1}
-.wl-card{display:flex;flex-direction:column;gap:20px;padding:24px 20px 22px;background:color-mix(in srgb,var(--surface) 86%,transparent);border:1px solid var(--line2);border-radius:10px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 30px 60px -34px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.03)}
-.wl-card.hud::before{inset:6px;opacity:.7}
-.wl-card .btn.big{margin-top:2px;padding:15px;border-radius:8px}
-.wl-field{display:flex;flex-direction:column;gap:8px;min-width:0}
-.wl-lab{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.wl-form{display:flex;flex-direction:column;gap:12px}
+.wl-form .btn.big{margin-top:6px;padding:14px;border-radius:10px}
+.wl-sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+.wl-forgot{align-self:flex-end;font-size:.84rem!important}
+.wl-field{display:flex;flex-direction:column;gap:6px;min-width:0}
 .wl-box{position:relative;display:flex;align-items:center}
 .wl-box>svg{position:absolute;left:15px;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);pointer-events:none;transition:color .2s}
-.welcome .wl-box input{height:54px;padding:0 48px 0 45px;font-size:1rem;border-radius:8px;border-color:var(--line2);background:var(--sunk);transition:border-color .2s,box-shadow .2s,background-color .2s}
+.welcome .wl-box input{height:50px;padding:0 46px 0 44px;font-size:1rem;border-radius:10px;border-color:var(--line2);background:var(--sunk);transition:border-color .2s,box-shadow .2s,background-color .2s}
 .welcome .wl-box input::placeholder{color:var(--muted);opacity:.65}
 .welcome .wl-box input:focus{border-color:var(--accent);background:var(--bg);box-shadow:0 0 0 4px var(--accent-soft)}
 .wl-box:focus-within>svg{color:var(--accent)}
@@ -1104,6 +1104,7 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .wl-mini:hover{text-decoration:underline;text-underline-offset:3px}
 .wl-alt{text-align:center;color:var(--muted);font-size:.93rem}
 .wl-alt .wl-mini{font-size:inherit;margin-left:2px}
+.wl-alt p+p{margin-top:4px}
 .wl-note{padding:12px 14px;border-radius:8px;border:1px solid var(--accent-dim);background:var(--accent-soft);font-size:.92rem;line-height:1.45}
 .wl-invite{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid var(--accent-dim);background:var(--accent-soft)}
 .wl-invite .avatar{border-radius:50%}
@@ -1117,17 +1118,14 @@ button,a,label,input,select,textarea{touch-action:manipulation;-webkit-tap-highl
 .wl-demo{opacity:.7}
 .wl-who{text-align:center}.wl-who .linkbtn{padding:0 2px}
 .acct-line{text-align:center;margin:6px 0 10px}.acct-line b{color:var(--ink);font-weight:600;word-break:break-all}
-/* the theme picker: every tile is a tiny preview of that look (its own background, its own colours) */
-.wl-themes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.wl-theme{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:7px 7px 10px;background:var(--surface);border:1px solid var(--line2);border-radius:10px;color:var(--ink);text-align:center;transition:transform .2s,border-color .2s,box-shadow .2s}
-.wl-theme:active{transform:scale(.97)}
-.wl-theme.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 10px 26px -12px var(--accent);transform:translateY(-2px)}
-.wl-theme.on::after{content:"✓";position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:.72rem;font-weight:700;line-height:22px;animation:wlPop .35s cubic-bezier(.3,1.6,.5,1)}
-.wl-theme b{font-size:.84rem;font-weight:600}
-.wl-sw{position:relative;height:62px;border-radius:7px;background:var(--t-bg);border:1px solid rgba(128,128,128,.22);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:5px;padding:9px}
-.wl-sw i:nth-child(1){position:absolute;top:9px;right:9px;width:15px;height:15px;border-radius:50%;border:2.5px solid var(--t-a)}
-.wl-sw i:nth-child(2){height:7px;width:64%;border-radius:4px;background:linear-gradient(90deg,var(--t-a),var(--t-b))}
-.wl-sw i:nth-child(3){height:4px;width:86%;border-radius:3px;background:var(--t-a);opacity:.28}
+/* the theme picker (last step of the welcome): one small row of colour dots, the name of the one picked underneath */
+.wl-dots{display:flex;justify-content:space-between;gap:6px;padding:4px 0}
+.wl-dot{width:42px;height:42px;flex:none;padding:3px;border-radius:50%;background:none;border:2px solid transparent;transition:transform .2s,border-color .2s}
+.wl-dot i{display:block;width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,var(--t-a) 0 50%,var(--t-bg) 50%);box-shadow:inset 0 0 0 1px rgba(128,128,128,.4)}
+.wl-dot.on{border-color:var(--accent);transform:scale(1.1)}
+.wl-dot:active{transform:scale(.94)}
+.wl-dotname{text-align:center;color:var(--muted);font-size:.9rem}
+.wl-dotname b{color:var(--ink);font-weight:600}
 /* the intro: a tap anywhere moves on, and it fades softly into the next screen */
 .welcome[data-step="hello"]{cursor:pointer}
 .wl-hi{letter-spacing:.32em;margin-bottom:-6px}

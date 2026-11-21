@@ -143,7 +143,7 @@ function wlWait(p){ui.wlBusy=true;const w=ui.welcome,step=w&&w.step,b=document.q
   return p.catch(e=>{ // on an account form, the problem shows right above the button. Anywhere else, a quick message
     if(ui.welcome&&ui.welcome===w&&w.step===step&&['account','login','forgot','newpw'].includes(step))w.err={form:authMsg(e)};else toast(authMsg(e))})
   .finally(()=>{ui.wlBusy=false;render()})}
-// the intro ("Welcome to Gymnazo") moves on by itself after about 3 seconds, fading into the theme picker.
+// the intro ("Welcome to Gymnazo") moves on by itself after about 3 seconds, fading into "What brings you here".
 // A tap anywhere skips it. Each intro gets one timer (a new intro, like after logging out, gets a fresh one)
 function wlIntro(){const w=ui.welcome;if(!w||w.step!=='hello'||ui.wlIntroFor===w)return;ui.wlIntroFor=w;
   const calm=matchMedia('(prefers-reduced-motion: reduce)').matches,go=()=>{if(ui.welcome===w&&w.step==='hello'){ACT['wl-start']();render()}};
@@ -254,8 +254,8 @@ const ACT={
     toast(keeps?`${c.name} is no longer your client. Their own history stays with them.`:`${c.name} and their history were deleted.`)},
   // the welcome for brand new people
   // "Get started", or "Create an account" from the log in screen (back to the account form if that's where they came from)
-  // the intro moving on to the theme picker, or "Create an account" on the log in screen (back to wherever they came from)
-  'wl-start'(){const w=ui.welcome;w.step=w.from&&!WL_SIDE.includes(w.from)?w.from:'theme';w.from=null;w.note=''},
+  // the intro moving on to "What brings you here", or "Create an account" on the log in screen (back to wherever they came from)
+  'wl-start'(){const w=ui.welcome;w.step=w.from&&!WL_SIDE.includes(w.from)?w.from:'path';w.from=null;w.note=''},
   // demo: opens the sample account. With real accounts: the log in screen
   'wl-login'(){if(live()){const w=ui.welcome;if(!WL_SIDE.includes(w.step))w.from=w.step;w.step='login';return}ui.welcome=null;try{localStorage.setItem('gymnazo-welcomed','1')}catch(e){}},
   // "Look around first": the demo with sample data, no account needed
@@ -265,8 +265,8 @@ const ACT={
   'wl-theme'(el){ui.welcome.theme=el.dataset.v},
   'wl-back'(){const w=ui.welcome;
     // log in goes back to wherever they opened it from. Forgot and sent go back to log in
-    if(w.step==='login'){w.step=w.from||'theme';w.from=null;w.note='';return}
-    if(WL_SIDE.includes(w.step)){w.step=w.step==='check'?'theme':'login';return}
+    if(w.step==='login'){w.step=w.from||'path';w.from=null;w.note='';return}
+    if(WL_SIDE.includes(w.step)){w.step=w.step==='check'?'path':'login';return}
     const p=wlBefore(w);if(p)w.step=p},
   // show or hide the password (changes just the box, so the cursor stays put)
   'wl-eye'(){const w=ui.welcome;w.eye=!w.eye;const i=$('#wl-pw'),b=document.querySelector('.wl-eye');
@@ -295,7 +295,7 @@ const ACT={
   // log out: back to the first screen
   logout(){closeSheets();ui.confirm=null;ui.modePick=false;
     // with real accounts, logging out lands on the log in screen (back goes to the start)
-    if(live()){const out=()=>({...wlNew('login'),from:'theme'});ui.welcome=out();render();wlWait(cloudSignOut().then(()=>{ui.welcome=out()}));scrollTo(0,0);return'skip'}
+    if(live()){const out=()=>({...wlNew('login'),from:'path'});ui.welcome=out();render();wlWait(cloudSignOut().then(()=>{ui.welcome=out()}));scrollTo(0,0);return'skip'}
     if(cloudReady()&&demoOn){try{localStorage.removeItem('gymnazo-demo-on')}catch(e){}location.reload();return'skip'} // leaving the demo
     ui.welcome={step:'hello',path:null,code:'',name:'',theme:themeOf()};try{localStorage.removeItem('gymnazo-welcomed');localStorage.removeItem('gymnazo-user')}catch(e){}scrollTo(0,0)},
   'welcome-replay'(){ui.demoSheet=false;ui.welcome={step:'hello',path:null,code:'',name:'',theme:'lime'};scrollTo(0,0)},
@@ -542,7 +542,7 @@ document.addEventListener('input',e=>{
   if(ds.savefrom!==undefined){ui.saveFrom=t.value;return}
   if(ds.wl&&ui.welcome){const w=ui.welcome;w[ds.wl]=t.value;
     // the password meter moves as they type
-    if(ds.wl==='pw'){const m=$('#wl-meter'),mt=$('#wl-meter-t');if(m&&mt){const [lv,lt]=pwLevel(t.value,w.email);m.dataset.lv=lv;mt.textContent=lt}}
+    if(ds.wl==='pw'){const m=$('#wl-meter'),mt=$('#wl-meter-t');if(m&&mt){const [lv,lt]=pwLevel(t.value,w.email);m.dataset.lv=lv;mt.textContent=lt;m.hidden=!t.value}}
     if(ds.wl==='email'&&w.sugg){w.sugg='';const s=$('#wl-sugg');if(s)s.hidden=true}
     // fixing a box takes its red warning away straight away
     if(w.err&&w.err[ds.wl]){delete w.err[ds.wl];const f=t.closest&&t.closest('.wl-field');if(f){f.classList.remove('bad');const m=f.querySelector('.wl-err');if(m)m.remove();t.removeAttribute('aria-invalid')}}
